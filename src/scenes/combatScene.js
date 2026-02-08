@@ -17,6 +17,48 @@ export function combatScene(k) {
       color: [100, 255, 100],
     };
 
+    // Deck system functions (defined early so we can pass to combatState)
+    const handCards = [];
+
+    function shuffleArray(arr) {
+      for (let i = arr.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [arr[i], arr[j]] = [arr[j], arr[i]];
+      }
+      return arr;
+    }
+
+    function buildStartingDeck() {
+      return [...gameState.deck];
+    }
+
+    function drawCards(count) {
+      for (let i = 0; i < count; i++) {
+        if (combatState.drawPile.length === 0) {
+          if (combatState.discardPile.length === 0) break;
+          combatState.drawPile = shuffleArray([...combatState.discardPile]);
+          combatState.discardPile = [];
+          beatLog.push('--- Discard reshuffled into draw pile ---');
+        }
+        const cardKey = combatState.drawPile.pop();
+        const cardData = CARDS[cardKey];
+        if (!cardData) continue;
+        const card = cardSystem.createCard(cardData, 0, 0, true);
+        card.deckCardKey = cardKey;
+        dragDropSystem.setupCardDrag(card, handCards, combatState);
+        handCards.push(card);
+      }
+      cardSystem.layoutHand(handCards);
+    }
+
+    function discardHand() {
+      handCards.forEach(card => {
+        combatState.discardPile.push(card.deckCardKey);
+        card.destroy();
+      });
+      handCards.length = 0;
+    }
+
     const combatState = {
       playerHP: gameState.currentHP,
       playerMaxHP: gameState.maxHP,
@@ -32,8 +74,8 @@ export function combatScene(k) {
       discardPile: [],
       turnNumber: 0,
       blockGainedThisLoop: 0,
-      doubleDamageMultiplier: 1,
-      nextLoopDoubleDamage: false,
+      doubleDamageBeat: -1, // Which beat should deal double damage (-1 = none)
+      drawCards, // Pass drawCards function for instant effects
     };
 
     const cardSystem = createCardSystem(k);
@@ -389,47 +431,7 @@ export function combatScene(k) {
       }
     });
 
-    const handCards = [];
-
-    function shuffleArray(arr) {
-      for (let i = arr.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [arr[i], arr[j]] = [arr[j], arr[i]];
-      }
-      return arr;
-    }
-
-    function buildStartingDeck() {
-      return [...gameState.deck];
-    }
-
-    function drawCards(count) {
-      for (let i = 0; i < count; i++) {
-        if (combatState.drawPile.length === 0) {
-          if (combatState.discardPile.length === 0) break;
-          combatState.drawPile = shuffleArray([...combatState.discardPile]);
-          combatState.discardPile = [];
-          beatLog.push('--- Discard reshuffled into draw pile ---');
-        }
-        const cardKey = combatState.drawPile.pop();
-        const cardData = CARDS[cardKey];
-        if (!cardData) continue;
-        const card = cardSystem.createCard(cardData, 0, 0, true);
-        card.deckCardKey = cardKey;
-        dragDropSystem.setupCardDrag(card, handCards, combatState);
-        handCards.push(card);
-      }
-      cardSystem.layoutHand(handCards);
-    }
-
-    function discardHand() {
-      handCards.forEach(card => {
-        combatState.discardPile.push(card.deckCardKey);
-        card.destroy();
-      });
-      handCards.length = 0;
-    }
-
+    // Initialize deck and draw first hand (functions defined earlier)
     combatState.drawPile = shuffleArray(buildStartingDeck());
     combatState.discardPile = [];
     drawCards(5);
@@ -530,6 +532,10 @@ export function combatScene(k) {
       updatedActions.playerEffects.forEach(cardData => {
         cardData.effects.forEach(effect => {
           if (effect.type !== 'block' && effect.type !== 'delayEnemy') {
+            // Skip draw effects for Syncopation (already executed instantly when placed)
+            if (effect.type === 'draw' && cardData.id === 'syncopation') {
+              return;
+            }
             const logEntry = executeEffect(effect, 'player', beat);
             if (logEntry) beatLog.push(`Beat ${beat + 1}: ${logEntry}`);
           }
@@ -543,11 +549,12 @@ export function combatScene(k) {
         }
       });
 
-      if (combatState.enemyHP <= 0 || combatState.playerHP <= 0) {
+      // Check for combat end - player death takes priority over enemy death
+      if (combatState.playerHP <= 0 || combatState.enemyHP <= 0) {
         measureUI.setPlayhead(-1);
         k.wait(0.5, () => {
-          if (combatState.enemyHP <= 0) victory();
-          else defeat();
+          if (combatState.playerHP <= 0) defeat();
+          else victory();
         });
         return;
       }
@@ -556,30 +563,38 @@ export function combatScene(k) {
       });
     }
 
-    function dealDamageToEnemy(rawValue) {
-      const dmg = rawValue * combatState.doubleDamageMultiplier;
+    function dealDamageToEnemy(rawValue, currentBeat) {
+      // Check if this beat should deal double damage
+      const multiplier = combatState.doubleDamageBeat === currentBeat ? 2 : 1;
+      const dmg = rawValue * multiplier;
       const blocked = Math.min(dmg, combatState.enemyBlock);
       combatState.enemyBlock -= blocked;
       const actual = dmg - blocked;
       combatState.enemyHP = Math.max(0, combatState.enemyHP - actual);
-      const multi = combatState.doubleDamageMultiplier > 1 ? ' (x2!)' : '';
+      const multi = multiplier > 1 ? ' (x2!)' : '';
+
+      // Clear the double damage flag after using it
+      if (combatState.doubleDamageBeat === currentBeat) {
+        combatState.doubleDamageBeat = -1;
+      }
+
       return { actual, blocked, multi };
     }
 
     function executeEffect(effect, source, beat) {
       switch (effect.type) {
         case 'damage': {
-          const { actual, blocked, multi } = dealDamageToEnemy(effect.value);
+          const { actual, blocked, multi } = dealDamageToEnemy(effect.value, beat);
           return `You deal ${actual} damage${blocked > 0 ? ` (${blocked} blocked)` : ''}${multi}`;
         }
         case 'damagePerBeat': {
-          const { actual, blocked, multi } = dealDamageToEnemy(effect.value);
+          const { actual, blocked, multi } = dealDamageToEnemy(effect.value, beat);
           return `Flourish: ${actual} damage${blocked > 0 ? ` (${blocked} blocked)` : ''}${multi}`;
         }
         case 'damageEqualBlock': {
           const dmgValue = combatState.blockGainedThisLoop;
           if (dmgValue <= 0) return `Violent Riff: 0 damage (no block gained)`;
-          const { actual, blocked, multi } = dealDamageToEnemy(dmgValue);
+          const { actual, blocked, multi } = dealDamageToEnemy(dmgValue, beat);
           return `Violent Riff: ${actual} damage (=${dmgValue} block)${blocked > 0 ? ` (${blocked} blocked)` : ''}${multi}`;
         }
         case 'conditionalDamage': {
@@ -593,7 +608,7 @@ export function combatScene(k) {
             condLabel = 'bass playing';
           }
           if (!conditionMet) return `Condition not met (${condLabel})`;
-          const { actual, blocked, multi } = dealDamageToEnemy(effect.value);
+          const { actual, blocked, multi } = dealDamageToEnemy(effect.value, beat);
           return `Bonus ${actual} damage! (${condLabel})${blocked > 0 ? ` (${blocked} blocked)` : ''}${multi}`;
         }
         case 'delayEnemy': {
@@ -602,8 +617,10 @@ export function combatScene(k) {
           return `All enemy actions delayed ${effect.value} beat!`;
         }
         case 'doubleDamageNext': {
-          combatState.nextLoopDoubleDamage = true;
-          return `Next loop deals double damage!`;
+          // Apply double damage to the immediate next beat
+          const nextBeat = (beat + 1) % 4; // Wrap around: 0,1,2,3 -> next beat
+          combatState.doubleDamageBeat = nextBeat;
+          return `Next beat (${nextBeat + 1}) deals double damage!`;
         }
         case 'block': {
           combatState.playerBlock += effect.value;
@@ -655,12 +672,7 @@ export function combatScene(k) {
       measureUI.setWrappedCards(wrappedCards);
       combatState.playerBlock = 0;
       combatState.enemyBlock = 0;
-      if (combatState.nextLoopDoubleDamage) {
-        combatState.doubleDamageMultiplier = 2;
-        combatState.nextLoopDoubleDamage = false;
-      } else {
-        combatState.doubleDamageMultiplier = 1;
-      }
+      // Note: doubleDamageBeat persists across loops if it wraps
       combatState.turnNumber++;
       k.wait(0.5, () => {
         combatState.currentTurn = 'player';

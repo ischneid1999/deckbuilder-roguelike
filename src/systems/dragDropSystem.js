@@ -151,6 +151,19 @@ export function createDragDropSystem(k, measureUI, cardSystem) {
         card.placedBeat = beat;
         card.angle = 0;
 
+        // Execute instant effects (like Syncopation's draw)
+        if (card.cardData.effects) {
+          card.cardData.effects.forEach(effect => {
+            // Syncopation: draw happens immediately, not during beat resolution
+            if (effect.type === 'draw' && card.cardData.id === 'syncopation') {
+              if (combatState.drawCards) {
+                combatState.drawCards(effect.value);
+                console.log(`Syncopation: Drew ${effect.value} card(s) instantly`);
+              }
+            }
+          });
+        }
+
         // Add click handler to pick up the card again
         this.setupPlacedCardPickup(card, hand, combatState);
 
