@@ -502,7 +502,7 @@ export function createMeasureUI(k) {
           result.playerEffects.push(card.cardData);
         } else if (occupiesBeat) {
           // Non-resolve beat: only per-beat effects fire
-          const perBeatEffects = card.cardData.effects.filter(e => e.type === 'damagePerBeat');
+          const perBeatEffects = card.cardData.effects.filter(e => e.type === 'damagePerBeat' || e.type === 'beatMultipliedDamage');
           if (perBeatEffects.length > 0) {
             result.playerEffects.push({ ...card.cardData, effects: perBeatEffects });
           }
