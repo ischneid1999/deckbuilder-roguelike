@@ -219,12 +219,12 @@ export function combatScene(k) {
 
       console.log('viewerData set:', viewerData);
 
-      const cardScale = 0.7;
+      const cardScale = 1.0; // INCREASED from 0.7 to 1.0
       const cardH = 150 * cardScale;
-      const gap = 15;
-      const cols = 5;
+      const gap = 20;
+      const cols = 4; // DECREASED from 5 to 4
       const rows = Math.ceil(shuffledPile.length / cols);
-      const maxScroll = Math.max(0, rows * (cardH + gap) - 400);
+      const maxScroll = Math.max(0, rows * (cardH + gap) - 450);
 
       scrollHandler = k.onScroll((delta) => {
         scrollOffset = Math.max(0, Math.min(maxScroll, scrollOffset - delta.y * 20));
@@ -276,195 +276,6 @@ export function combatScene(k) {
     function closeDiscardViewer() {
       closePileViewer();
     }
-
-    // Global draw handler for viewer overlay
-    k.onDraw(() => {
-      if (!viewerData) return;
-
-      console.log('Drawing viewer overlay with', viewerData.pile.length, 'cards');
-
-      const { title, pile, pileLength } = viewerData;
-
-      // Draw overlay
-      k.drawRect({
-        pos: k.vec2(0, 0),
-        width: k.width(),
-        height: k.height(),
-        color: k.rgb(0, 0, 0, 180),
-      });
-
-      // Title
-      k.drawText({
-        text: title,
-        pos: k.vec2(k.width() / 2, 40),
-        size: 32,
-        font: 'sans-serif',
-        anchor: 'center',
-        color: k.WHITE,
-      });
-
-      // Count
-      k.drawText({
-        text: `${pileLength} cards`,
-        pos: k.vec2(k.width() / 2, 75),
-        size: 18,
-        font: 'sans-serif',
-        anchor: 'center',
-        color: k.rgb(180, 180, 180),
-      });
-
-      // Scroll hint
-      const cardScale = 0.7;
-      const cardH = 150 * cardScale;
-      const gap = 15;
-      const cols = 5;
-      const rows = Math.ceil(pile.length / cols);
-      const maxScroll = Math.max(0, rows * (cardH + gap) - 400);
-      
-      if (maxScroll > 0) {
-        k.drawText({
-          text: 'Scroll with mouse wheel',
-          pos: k.vec2(k.width() / 2, 100),
-          size: 14,
-          font: 'sans-serif',
-          anchor: 'center',
-          color: k.rgb(150, 150, 150),
-        });
-      }
-
-      // Close button
-      const btnX = k.width() / 2;
-      const btnY = k.height() - 50;
-      const btnW = 100;
-      const btnH = 40;
-      
-      k.drawRect({
-        pos: k.vec2(btnX - btnW/2, btnY - btnH/2),
-        width: btnW,
-        height: btnH,
-        radius: 4,
-        color: k.rgb(100, 100, 100),
-        outline: { width: 2, color: k.WHITE },
-      });
-
-      k.drawText({
-        text: 'CLOSE',
-        pos: k.vec2(btnX, btnY),
-        size: 18,
-        font: 'sans-serif',
-        anchor: 'center',
-        color: k.WHITE,
-      });
-
-      // Draw cards
-      const cardW = 110 * cardScale;
-      const startX = (k.width() - (cols * (cardW + gap) - gap)) / 2;
-      const startY = 120 - scrollOffset;
-
-      pile.forEach((cardKey, i) => {
-        const cardData = CARDS[cardKey];
-        if (!cardData) return;
-
-        const col = i % cols;
-        const row = Math.floor(i / cols);
-        const x = startX + col * (cardW + gap);
-        const y = startY + row * (cardH + gap);
-
-        if (y + cardH < 120 || y > k.height() - 100) return;
-
-        const cardColor = getCardColor(cardData);
-        const borderColor = getRarityBorderColor(cardData.rarity);
-
-        k.drawRect({
-          pos: k.vec2(x - 110/2 * cardScale, y - 150/2 * cardScale),
-          width: 110 * cardScale,
-          height: 150 * cardScale,
-          radius: 4,
-          color: k.rgb(...cardColor),
-          outline: { width: 3, color: k.rgb(...borderColor) },
-        });
-
-        k.drawCircle({
-          pos: k.vec2(x - 110/2 * cardScale + 20 * cardScale, y - 150/2 * cardScale + 20 * cardScale),
-          radius: 16 * cardScale,
-          color: k.rgb(100, 200, 255),
-          outline: { width: 2, color: k.BLACK },
-        });
-
-        k.drawText({
-          text: cardData.mana.toString(),
-          pos: k.vec2(x - 110/2 * cardScale + 20 * cardScale, y - 150/2 * cardScale + 20 * cardScale),
-          size: 18 * cardScale,
-          font: 'sans-serif',
-          anchor: 'center',
-          color: k.WHITE,
-        });
-
-        if (cardData.type !== 'utility' && cardData.beats > 0) {
-          k.drawRect({
-            pos: k.vec2(x + 110/2 * cardScale - 20 * cardScale - 15 * cardScale, y - 150/2 * cardScale + 10 * cardScale),
-            width: 30 * cardScale,
-            height: 20 * cardScale,
-            radius: 2,
-            color: k.rgb(0, 0, 0, 150),
-            outline: { width: 1, color: k.rgb(200, 200, 200) },
-          });
-
-          k.drawText({
-            text: `${cardData.beats}♪`,
-            pos: k.vec2(x + 110/2 * cardScale - 20 * cardScale, y - 150/2 * cardScale + 20 * cardScale),
-            size: 14 * cardScale,
-            font: 'sans-serif',
-            anchor: 'center',
-            color: k.WHITE,
-          });
-        }
-
-        k.drawText({
-          text: cardData.name,
-          pos: k.vec2(x, y - 150/2 * cardScale + 45 * cardScale),
-          size: 12 * cardScale,
-          font: 'sans-serif',
-          anchor: 'center',
-          color: k.BLACK,
-          width: 100 * cardScale,
-        });
-
-        const typeColors = {
-          rhythm: [220, 50, 50],
-          bass: [50, 150, 220],
-          utility: [150, 220, 50],
-        };
-
-        k.drawRect({
-          pos: k.vec2(x - 100/2 * cardScale, y - 150/2 * cardScale + 65 * cardScale - 8 * cardScale),
-          width: 100 * cardScale,
-          height: 16 * cardScale,
-          radius: 2,
-          color: k.rgb(...(typeColors[cardData.type] || [100, 100, 100])),
-        });
-
-        k.drawText({
-          text: cardData.type.toUpperCase(),
-          pos: k.vec2(x, y - 150/2 * cardScale + 65 * cardScale),
-          size: 10 * cardScale,
-          font: 'sans-serif',
-          anchor: 'center',
-          color: k.WHITE,
-        });
-
-        k.drawText({
-          text: cardData.description,
-          pos: k.vec2(x, y + 15 * cardScale),
-          size: 9 * cardScale,
-          font: 'sans-serif',
-          anchor: 'center',
-          color: k.BLACK,
-          width: 95 * cardScale,
-          lineSpacing: 2,
-        });
-      });
-    });
 
     // [REST OF THE COMBAT SCENE CODE - Enemy, HP bars, deck system, etc. - TRUNCATED FOR BREVITY]
     // ... (Include all the rest of the combat scene code here)
@@ -837,5 +648,192 @@ export function combatScene(k) {
       gameState.currentHP = combatState.playerHP;
       k.go('gameover', { gameState });
     }
+
+    // Global draw handler for viewer overlay - REGISTERED LAST SO IT DRAWS ON TOP
+    k.onDraw(() => {
+      if (!viewerData) return;
+
+      const { title, pile, pileLength } = viewerData;
+
+      // Draw overlay
+      k.drawRect({
+        pos: k.vec2(0, 0),
+        width: k.width(),
+        height: k.height(),
+        color: k.rgb(0, 0, 0, 200),
+      });
+
+      // Title
+      k.drawText({
+        text: title,
+        pos: k.vec2(k.width() / 2, 50),
+        size: 40,
+        font: 'sans-serif',
+        anchor: 'center',
+        color: k.WHITE,
+      });
+
+      // Count
+      k.drawText({
+        text: `${pileLength} cards`,
+        pos: k.vec2(k.width() / 2, 95),
+        size: 20,
+        font: 'sans-serif',
+        anchor: 'center',
+        color: k.rgb(180, 180, 180),
+      });
+
+      // Scroll hint
+      const cardScale = 1.0; // INCREASED from 0.7 to 1.0
+      const cardH = 150 * cardScale;
+      const gap = 20;
+      const cols = 4; // DECREASED from 5 to 4 for bigger cards
+      const rows = Math.ceil(pile.length / cols);
+      const maxScroll = Math.max(0, rows * (cardH + gap) - 450);
+      
+      if (maxScroll > 0) {
+        k.drawText({
+          text: 'Scroll with mouse wheel',
+          pos: k.vec2(k.width() / 2, 130),
+          size: 16,
+          font: 'sans-serif',
+          anchor: 'center',
+          color: k.rgb(200, 200, 100),
+        });
+      }
+
+      // Close button
+      const btnX = k.width() / 2;
+      const btnY = k.height() - 60;
+      const btnW = 120;
+      const btnH = 50;
+      
+      k.drawRect({
+        pos: k.vec2(btnX - btnW/2, btnY - btnH/2),
+        width: btnW,
+        height: btnH,
+        radius: 6,
+        color: k.rgb(120, 120, 120),
+        outline: { width: 3, color: k.WHITE },
+      });
+
+      k.drawText({
+        text: 'CLOSE',
+        pos: k.vec2(btnX, btnY),
+        size: 22,
+        font: 'sans-serif',
+        anchor: 'center',
+        color: k.WHITE,
+      });
+
+      // Draw cards
+      const cardW = 110 * cardScale;
+      const startX = (k.width() - (cols * (cardW + gap) - gap)) / 2;
+      const startY = 160 - scrollOffset;
+
+      pile.forEach((cardKey, i) => {
+        const cardData = CARDS[cardKey];
+        if (!cardData) return;
+
+        const col = i % cols;
+        const row = Math.floor(i / cols);
+        const x = startX + col * (cardW + gap);
+        const y = startY + row * (cardH + gap);
+
+        if (y + cardH < 160 || y > k.height() - 120) return;
+
+        const cardColor = getCardColor(cardData);
+        const borderColor = getRarityBorderColor(cardData.rarity);
+
+        k.drawRect({
+          pos: k.vec2(x - 110/2 * cardScale, y - 150/2 * cardScale),
+          width: 110 * cardScale,
+          height: 150 * cardScale,
+          radius: 4,
+          color: k.rgb(...cardColor),
+          outline: { width: 3, color: k.rgb(...borderColor) },
+        });
+
+        k.drawCircle({
+          pos: k.vec2(x - 110/2 * cardScale + 20 * cardScale, y - 150/2 * cardScale + 20 * cardScale),
+          radius: 16 * cardScale,
+          color: k.rgb(100, 200, 255),
+          outline: { width: 2, color: k.BLACK },
+        });
+
+        k.drawText({
+          text: cardData.mana.toString(),
+          pos: k.vec2(x - 110/2 * cardScale + 20 * cardScale, y - 150/2 * cardScale + 20 * cardScale),
+          size: 18 * cardScale,
+          font: 'sans-serif',
+          anchor: 'center',
+          color: k.WHITE,
+        });
+
+        if (cardData.type !== 'utility' && cardData.beats > 0) {
+          k.drawRect({
+            pos: k.vec2(x + 110/2 * cardScale - 20 * cardScale - 15 * cardScale, y - 150/2 * cardScale + 10 * cardScale),
+            width: 30 * cardScale,
+            height: 20 * cardScale,
+            radius: 2,
+            color: k.rgb(0, 0, 0, 150),
+            outline: { width: 1, color: k.rgb(200, 200, 200) },
+          });
+
+          k.drawText({
+            text: `${cardData.beats}♪`,
+            pos: k.vec2(x + 110/2 * cardScale - 20 * cardScale, y - 150/2 * cardScale + 20 * cardScale),
+            size: 14 * cardScale,
+            font: 'sans-serif',
+            anchor: 'center',
+            color: k.WHITE,
+          });
+        }
+
+        k.drawText({
+          text: cardData.name,
+          pos: k.vec2(x, y - 150/2 * cardScale + 45 * cardScale),
+          size: 12 * cardScale,
+          font: 'sans-serif',
+          anchor: 'center',
+          color: k.BLACK,
+          width: 100 * cardScale,
+        });
+
+        const typeColors = {
+          rhythm: [220, 50, 50],
+          bass: [50, 150, 220],
+          utility: [150, 220, 50],
+        };
+
+        k.drawRect({
+          pos: k.vec2(x - 100/2 * cardScale, y - 150/2 * cardScale + 65 * cardScale - 8 * cardScale),
+          width: 100 * cardScale,
+          height: 16 * cardScale,
+          radius: 2,
+          color: k.rgb(...(typeColors[cardData.type] || [100, 100, 100])),
+        });
+
+        k.drawText({
+          text: cardData.type.toUpperCase(),
+          pos: k.vec2(x, y - 150/2 * cardScale + 65 * cardScale),
+          size: 10 * cardScale,
+          font: 'sans-serif',
+          anchor: 'center',
+          color: k.WHITE,
+        });
+
+        k.drawText({
+          text: cardData.description,
+          pos: k.vec2(x, y + 15 * cardScale),
+          size: 9 * cardScale,
+          font: 'sans-serif',
+          anchor: 'center',
+          color: k.BLACK,
+          width: 95 * cardScale,
+          lineSpacing: 2,
+        });
+      });
+    });
   });
 }
