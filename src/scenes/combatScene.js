@@ -1,6 +1,6 @@
 // Combat scene - Musical loop gameplay with beat-by-beat resolution
 
-import { CARDS } from '../config/cardData.js';
+import { CARDS, getCardColor, getRarityBorderColor } from '../config/cardData.js';
 import { createCardSystem } from '../systems/cardSystem.js';
 import { createMeasureUI } from '../ui/measureUI.js';
 import { createDragDropSystem } from '../systems/dragDropSystem.js';
@@ -131,9 +131,14 @@ export function combatScene(k) {
       k.setCursor('default');
     });
 
-    drawPileBtn.onClick(() => {
-      if (discardViewerOpen) return;
+    drawPileBtn.onMousePress(() => {
+      console.log('Draw pile clicked, open:', deckViewerOpen, 'pile length:', combatState.drawPile.length);
+      if (discardViewerOpen) {
+        console.log('Discard viewer already open, blocking');
+        return;
+      }
       deckViewerOpen = !deckViewerOpen;
+      console.log('Toggled deckViewerOpen to:', deckViewerOpen);
       if (deckViewerOpen) showDeckViewer();
       else closeDeckViewer();
     });
@@ -182,9 +187,14 @@ export function combatScene(k) {
       k.setCursor('default');
     });
 
-    discardPileBtn.onClick(() => {
-      if (deckViewerOpen) return;
+    discardPileBtn.onMousePress(() => {
+      console.log('Discard pile clicked, open:', discardViewerOpen, 'pile length:', combatState.discardPile.length);
+      if (deckViewerOpen) {
+        console.log('Deck viewer already open, blocking');
+        return;
+      }
       discardViewerOpen = !discardViewerOpen;
+      console.log('Toggled discardViewerOpen to:', discardViewerOpen);
       if (discardViewerOpen) showDiscardViewer();
       else closeDiscardViewer();
     });
@@ -194,18 +204,34 @@ export function combatScene(k) {
 
     function showDeckViewer() {
       showPileViewer(combatState.drawPile, 'Draw Pile', () => {
+        console.log('Deck viewer onClose callback');
         deckViewerOpen = false;
+        console.log('deckViewerOpen set to:', deckViewerOpen);
       });
     }
 
     function showDiscardViewer() {
       showPileViewer(combatState.discardPile, 'Discard Pile', () => {
+        console.log('Discard viewer onClose callback');
         discardViewerOpen = false;
+        console.log('discardViewerOpen set to:', discardViewerOpen);
       });
     }
 
+    let scrollOffset = 0;
+
     function showPileViewer(pile, title, onClose) {
-      // Dark overlay
+      console.log('showPileViewer called with:', title, 'pile length:', pile.length);
+      scrollOffset = 0;
+
+      // Shuffle pile for display
+      const shuffledPile = [...pile];
+      for (let i = shuffledPile.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [shuffledPile[i], shuffledPile[j]] = [shuffledPile[j], shuffledPile[i]];
+      }
+
+      // Dark overlay background
       viewerOverlay = k.add([
         k.rect(k.width(), k.height()),
         k.pos(0, 0),
@@ -214,21 +240,27 @@ export function combatScene(k) {
         k.area(),
       ]);
 
-      // Title
-      viewerOverlay.add([
+      console.log('Overlay created');
+
+      // Title (added to scene, not overlay, so it appears on top)
+      const titleText = k.add([
         k.text(title, { size: 32, font: 'sans-serif' }),
         k.pos(k.width() / 2, 40),
         k.anchor('center'),
         k.color(k.WHITE),
+        k.z(201),
       ]);
+      viewerCards.push(titleText);
 
       // Card count
-      viewerOverlay.add([
+      const countText = k.add([
         k.text(`${pile.length} cards`, { size: 18, font: 'sans-serif' }),
         k.pos(k.width() / 2, 75),
         k.anchor('center'),
         k.color(180, 180, 180),
+        k.z(201),
       ]);
+      viewerCards.push(countText);
 
       // Close button
       const closeBtn = viewerOverlay.add([
@@ -238,7 +270,6 @@ export function combatScene(k) {
         k.color(100, 100, 100),
         k.outline(2, k.WHITE),
         k.area(),
-        k.z(1),
       ]);
 
       closeBtn.add([
@@ -257,21 +288,49 @@ export function combatScene(k) {
         k.setCursor('default');
       });
 
-      closeBtn.onClick(() => {
+      closeBtn.onMousePress(() => {
+        console.log('Close button clicked');
         closePileViewer();
         onClose();
       });
 
-      // Display cards in grid
-      const cardScale = 0.65;
+      // Scrollable card container
+      const cardScale = 0.7;
       const cardW = 110 * cardScale;
       const cardH = 150 * cardScale;
       const gap = 15;
-      const cols = 8;
+      const cols = 5; // Changed from 8 to 5
+      const rows = Math.ceil(shuffledPile.length / cols);
       const startX = (k.width() - (cols * (cardW + gap) - gap)) / 2;
       const startY = 120;
+      const maxScroll = Math.max(0, rows * (cardH + gap) - 400); // Max scroll distance
 
-      pile.forEach((cardKey, i) => {
+      // Create scrollable container for cards
+      const cardContainer = viewerOverlay.add([
+        k.pos(0, 0),
+      ]);
+
+      // Add scroll indicator if needed
+      if (maxScroll > 0) {
+        viewerOverlay.add([
+          k.text('Scroll with mouse wheel', { size: 14, font: 'sans-serif' }),
+          k.pos(k.width() / 2, 100),
+          k.anchor('center'),
+          k.color(150, 150, 150),
+        ]);
+      }
+
+      // Debug: Add a simple test rectangle first
+      const testRect = cardContainer.add([
+        k.rect(100, 100),
+        k.pos(k.width() / 2, k.height() / 2),
+        k.anchor('center'),
+        k.color(255, 0, 255), // Bright magenta
+        k.outline(5, k.rgb(0, 255, 0)),
+      ]);
+      console.log('Test rectangle created at', k.width() / 2, k.height() / 2);
+
+      shuffledPile.forEach((cardKey, i) => {
         const cardData = CARDS[cardKey];
         if (!cardData) return;
 
@@ -280,15 +339,117 @@ export function combatScene(k) {
         const x = startX + col * (cardW + gap);
         const y = startY + row * (cardH + gap);
 
-        const cardObj = cardSystem.createCard(cardData, x, y, false);
-        cardObj.scale = k.vec2(cardScale, cardScale);
-        cardObj.z = 201;
+        const cardColor = getCardColor(cardData);
+        const borderColor = getRarityBorderColor(cardData.rarity);
+        console.log(`Card ${i} (${cardData.name}): pos=(${x}, ${y}), color=${cardColor}, border=${borderColor}`);
+
+        // Create card as child of container
+        const cardObj = cardContainer.add([
+          k.rect(110, 150, { radius: 4 }),
+          k.pos(x, y),
+          k.anchor('center'),
+          k.color(...cardColor),
+          k.outline(3, k.rgb(...borderColor)),
+          k.scale(cardScale),
+        ]);
+
+        // Mana cost circle
+        cardObj.add([
+          k.circle(16),
+          k.pos(-110/2 + 20, -150/2 + 20),
+          k.color(100, 200, 255),
+          k.outline(2, k.BLACK),
+          k.z(1),
+        ]);
+
+        cardObj.add([
+          k.text(cardData.mana.toString(), { size: 18, font: 'sans-serif' }),
+          k.pos(-110/2 + 20, -150/2 + 20),
+          k.anchor('center'),
+          k.color(k.WHITE),
+          k.z(2),
+        ]);
+
+        // Beats indicator (only for rhythm/bass)
+        if (cardData.type !== 'utility' && cardData.beats > 0) {
+          cardObj.add([
+            k.rect(30, 20, { radius: 2 }),
+            k.pos(110/2 - 20, -150/2 + 20),
+            k.anchor('center'),
+            k.color(0, 0, 0, 150),
+            k.outline(1, k.rgb(200, 200, 200)),
+            k.z(1),
+          ]);
+
+          cardObj.add([
+            k.text(`${cardData.beats}♪`, { size: 14, font: 'sans-serif' }),
+            k.pos(110/2 - 20, -150/2 + 20),
+            k.anchor('center'),
+            k.color(k.WHITE),
+            k.z(2),
+          ]);
+        }
+
+        // Card name
+        cardObj.add([
+          k.text(cardData.name, { size: 12, font: 'sans-serif', width: 100 }),
+          k.pos(0, -150/2 + 45),
+          k.anchor('center'),
+          k.color(k.BLACK),
+          k.z(1),
+        ]);
+
+        // Type badge
+        const typeColors = {
+          rhythm: [220, 50, 50],
+          bass: [50, 150, 220],
+          utility: [150, 220, 50],
+        };
+
+        cardObj.add([
+          k.rect(100, 16, { radius: 2 }),
+          k.pos(0, -150/2 + 65),
+          k.anchor('center'),
+          k.color(...(typeColors[cardData.type] || [100, 100, 100])),
+          k.z(1),
+        ]);
+
+        cardObj.add([
+          k.text(cardData.type.toUpperCase(), { size: 10, font: 'sans-serif' }),
+          k.pos(0, -150/2 + 65),
+          k.anchor('center'),
+          k.color(k.WHITE),
+          k.z(2),
+        ]);
+
+        // Description
+        cardObj.add([
+          k.text(cardData.description, { size: 9, font: 'sans-serif', width: 95, lineSpacing: 2 }),
+          k.pos(0, 15),
+          k.anchor('center'),
+          k.color(k.BLACK),
+          k.z(1),
+        ]);
+
         viewerCards.push(cardObj);
-        viewerOverlay.add(cardObj);
       });
 
-      // Click overlay to close
-      viewerOverlay.onClick(() => {
+      console.log('Created', viewerCards.length, 'card objects in container');
+
+      // Mouse wheel scrolling
+      const scrollHandler = k.onScroll((delta) => {
+        if (!viewerOverlay) return;
+
+        scrollOffset = Math.max(0, Math.min(maxScroll, scrollOffset - delta.y * 20));
+        cardContainer.pos.y = -scrollOffset;
+      });
+
+      // Store scroll handler to remove it later
+      viewerOverlay.scrollHandler = scrollHandler;
+
+      // Click overlay background to close (but not cards or close button)
+      viewerOverlay.onMousePress(() => {
+        console.log('Overlay clicked');
         closePileViewer();
         onClose();
       });
@@ -296,8 +457,14 @@ export function combatScene(k) {
 
     function closePileViewer() {
       if (viewerOverlay) {
+        // Remove scroll handler
+        if (viewerOverlay.scrollHandler) {
+          viewerOverlay.scrollHandler.cancel();
+        }
+        // Destroy all viewer cards
         viewerCards.forEach(c => c.destroy());
         viewerCards = [];
+        // Destroy overlay (this also destroys children)
         viewerOverlay.destroy();
         viewerOverlay = null;
       }
