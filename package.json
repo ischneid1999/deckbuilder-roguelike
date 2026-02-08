@@ -1,0 +1,20 @@
+{
+  "name": "deckbuilder-roguelike",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "A deckbuilding roguelike game built with KaplayJS",
+  "dependencies": {
+    "kaplay": "^3001.0.19"
+  },
+  "devDependencies": {
+    "vite": "^7.3.1"
+  }
+}
