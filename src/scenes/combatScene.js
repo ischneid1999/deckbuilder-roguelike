@@ -1,4 +1,5 @@
 // Combat scene - Musical loop gameplay with beat-by-beat resolution
+// FIXED: Deck viewer z-index issues
 
 import { CARDS, getCardColor, getRarityBorderColor } from '../config/cardData.js';
 import { createCardSystem } from '../systems/cardSystem.js';
@@ -231,34 +232,34 @@ export function combatScene(k) {
         [shuffledPile[i], shuffledPile[j]] = [shuffledPile[j], shuffledPile[i]];
       }
 
-      // Dark overlay background
+      // Dark overlay background - FIXED: Use much higher z-index
       viewerOverlay = k.add([
         k.rect(k.width(), k.height()),
         k.pos(0, 0),
         k.color(0, 0, 0, 180),
-        k.z(200),
+        k.z(500), // FIXED: Increased from 200 to 500
         k.area(),
       ]);
 
-      console.log('Overlay created');
+      console.log('Overlay created with z-index 500');
 
-      // Title (added to scene, not overlay, so it appears on top)
-      const titleText = k.add([
+      // Title - FIXED: Add as child of overlay so it inherits z-index
+      const titleText = viewerOverlay.add([
         k.text(title, { size: 32, font: 'sans-serif' }),
         k.pos(k.width() / 2, 40),
         k.anchor('center'),
         k.color(k.WHITE),
-        k.z(201),
+        k.z(1), // Relative to parent
       ]);
       viewerCards.push(titleText);
 
-      // Card count
-      const countText = k.add([
+      // Card count - FIXED: Add as child of overlay
+      const countText = viewerOverlay.add([
         k.text(`${pile.length} cards`, { size: 18, font: 'sans-serif' }),
         k.pos(k.width() / 2, 75),
         k.anchor('center'),
         k.color(180, 180, 180),
-        k.z(201),
+        k.z(1), // Relative to parent
       ]);
       viewerCards.push(countText);
 
@@ -270,6 +271,7 @@ export function combatScene(k) {
         k.color(100, 100, 100),
         k.outline(2, k.WHITE),
         k.area(),
+        k.z(2), // Relative to parent
       ]);
 
       closeBtn.add([
@@ -294,20 +296,21 @@ export function combatScene(k) {
         onClose();
       });
 
-      // Scrollable card container
+      // Scrollable card container - FIXED: Set explicit z-index
       const cardScale = 0.7;
       const cardW = 110 * cardScale;
       const cardH = 150 * cardScale;
       const gap = 15;
-      const cols = 5; // Changed from 8 to 5
+      const cols = 5;
       const rows = Math.ceil(shuffledPile.length / cols);
       const startX = (k.width() - (cols * (cardW + gap) - gap)) / 2;
       const startY = 120;
-      const maxScroll = Math.max(0, rows * (cardH + gap) - 400); // Max scroll distance
+      const maxScroll = Math.max(0, rows * (cardH + gap) - 400);
 
-      // Create scrollable container for cards
+      // Create scrollable container for cards as child of overlay
       const cardContainer = viewerOverlay.add([
         k.pos(0, 0),
+        k.z(1), // Relative to parent
       ]);
 
       // Add scroll indicator if needed
@@ -317,18 +320,9 @@ export function combatScene(k) {
           k.pos(k.width() / 2, 100),
           k.anchor('center'),
           k.color(150, 150, 150),
+          k.z(1), // Relative to parent
         ]);
       }
-
-      // Debug: Add a simple test rectangle first
-      const testRect = cardContainer.add([
-        k.rect(100, 100),
-        k.pos(k.width() / 2, k.height() / 2),
-        k.anchor('center'),
-        k.color(255, 0, 255), // Bright magenta
-        k.outline(5, k.rgb(0, 255, 0)),
-      ]);
-      console.log('Test rectangle created at', k.width() / 2, k.height() / 2);
 
       shuffledPile.forEach((cardKey, i) => {
         const cardData = CARDS[cardKey];
@@ -341,7 +335,6 @@ export function combatScene(k) {
 
         const cardColor = getCardColor(cardData);
         const borderColor = getRarityBorderColor(cardData.rarity);
-        console.log(`Card ${i} (${cardData.name}): pos=(${x}, ${y}), color=${cardColor}, border=${borderColor}`);
 
         // Create card as child of container
         const cardObj = cardContainer.add([
@@ -351,6 +344,7 @@ export function combatScene(k) {
           k.color(...cardColor),
           k.outline(3, k.rgb(...borderColor)),
           k.scale(cardScale),
+          k.z(1), // Relative to parent
         ]);
 
         // Mana cost circle
