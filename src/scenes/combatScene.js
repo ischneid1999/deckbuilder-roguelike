@@ -1,5 +1,5 @@
 // Combat scene - Musical loop gameplay with beat-by-beat resolution
-// FIXED v2: Simplified deck viewer with proper rendering
+// FIXED v3: Using onDraw() instead of draw component
 
 import { CARDS, getCardColor, getRarityBorderColor } from '../config/cardData.js';
 import { createCardSystem } from '../systems/cardSystem.js';
@@ -87,6 +87,7 @@ export function combatScene(k) {
     // Deck pile viewer state
     let deckViewerOpen = false;
     let discardViewerOpen = false;
+    let viewerData = null; // Store viewer data for rendering
 
     // Draw pile button
     const drawPileBtn = k.add([
@@ -200,7 +201,6 @@ export function combatScene(k) {
       else closeDiscardViewer();
     });
 
-    let viewerObjects = []; // Track all viewer objects for cleanup
     let scrollOffset = 0;
     let scrollHandler = null;
 
@@ -223,9 +223,6 @@ export function combatScene(k) {
     function showPileViewer(pile, title, onClose) {
       console.log('showPileViewer called with:', title, 'pile length:', pile.length);
       
-      // Clear any existing viewer
-      closePileViewer();
-      
       scrollOffset = 0;
 
       // Shuffle pile for display
@@ -235,220 +232,13 @@ export function combatScene(k) {
         [shuffledPile[i], shuffledPile[j]] = [shuffledPile[j], shuffledPile[i]];
       }
 
-      // Create a drawing component for the overlay
-      const overlayDrawer = k.add([
-        k.pos(0, 0),
-        k.z(1000), // Very high z-index
-        {
-          draw() {
-            // Draw dark overlay
-            k.drawRect({
-              pos: k.vec2(0, 0),
-              width: k.width(),
-              height: k.height(),
-              color: k.rgb(0, 0, 0, 180),
-            });
-
-            // Draw title
-            k.drawText({
-              text: title,
-              pos: k.vec2(k.width() / 2, 40),
-              size: 32,
-              font: 'sans-serif',
-              anchor: 'center',
-              color: k.WHITE,
-            });
-
-            // Draw card count
-            k.drawText({
-              text: `${pile.length} cards`,
-              pos: k.vec2(k.width() / 2, 75),
-              size: 18,
-              font: 'sans-serif',
-              anchor: 'center',
-              color: k.rgb(180, 180, 180),
-            });
-
-            // Draw scroll hint if needed
-            const cardScale = 0.7;
-            const cardH = 150 * cardScale;
-            const gap = 15;
-            const cols = 5;
-            const rows = Math.ceil(shuffledPile.length / cols);
-            const maxScroll = Math.max(0, rows * (cardH + gap) - 400);
-            
-            if (maxScroll > 0) {
-              k.drawText({
-                text: 'Scroll with mouse wheel',
-                pos: k.vec2(k.width() / 2, 100),
-                size: 14,
-                font: 'sans-serif',
-                anchor: 'center',
-                color: k.rgb(150, 150, 150),
-              });
-            }
-
-            // Draw close button
-            const btnX = k.width() / 2;
-            const btnY = k.height() - 50;
-            const btnW = 100;
-            const btnH = 40;
-            
-            k.drawRect({
-              pos: k.vec2(btnX - btnW/2, btnY - btnH/2),
-              width: btnW,
-              height: btnH,
-              radius: 4,
-              color: k.rgb(100, 100, 100),
-              outline: { width: 2, color: k.WHITE },
-            });
-
-            k.drawText({
-              text: 'CLOSE',
-              pos: k.vec2(btnX, btnY),
-              size: 18,
-              font: 'sans-serif',
-              anchor: 'center',
-              color: k.WHITE,
-            });
-
-            // Draw cards
-            const cardW = 110 * cardScale;
-            const startX = (k.width() - (cols * (cardW + gap) - gap)) / 2;
-            const startY = 120 - scrollOffset;
-
-            shuffledPile.forEach((cardKey, i) => {
-              const cardData = CARDS[cardKey];
-              if (!cardData) return;
-
-              const col = i % cols;
-              const row = Math.floor(i / cols);
-              const x = startX + col * (cardW + gap);
-              const y = startY + row * (cardH + gap);
-
-              // Skip if card is off-screen
-              if (y + cardH < 0 || y > k.height()) return;
-
-              const cardColor = getCardColor(cardData);
-              const borderColor = getRarityBorderColor(cardData.rarity);
-
-              // Draw card background
-              k.drawRect({
-                pos: k.vec2(x - 110/2 * cardScale, y - 150/2 * cardScale),
-                width: 110 * cardScale,
-                height: 150 * cardScale,
-                radius: 4,
-                color: k.rgb(...cardColor),
-                outline: { width: 3, color: k.rgb(...borderColor) },
-              });
-
-              // Draw mana cost
-              k.drawCircle({
-                pos: k.vec2(x - 110/2 * cardScale + 20 * cardScale, y - 150/2 * cardScale + 20 * cardScale),
-                radius: 16 * cardScale,
-                color: k.rgb(100, 200, 255),
-                outline: { width: 2, color: k.BLACK },
-              });
-
-              k.drawText({
-                text: cardData.mana.toString(),
-                pos: k.vec2(x - 110/2 * cardScale + 20 * cardScale, y - 150/2 * cardScale + 20 * cardScale),
-                size: 18 * cardScale,
-                font: 'sans-serif',
-                anchor: 'center',
-                color: k.WHITE,
-              });
-
-              // Draw beats indicator for rhythm/bass
-              if (cardData.type !== 'utility' && cardData.beats > 0) {
-                k.drawRect({
-                  pos: k.vec2(x + 110/2 * cardScale - 20 * cardScale - 15 * cardScale, y - 150/2 * cardScale + 10 * cardScale),
-                  width: 30 * cardScale,
-                  height: 20 * cardScale,
-                  radius: 2,
-                  color: k.rgb(0, 0, 0, 150),
-                  outline: { width: 1, color: k.rgb(200, 200, 200) },
-                });
-
-                k.drawText({
-                  text: `${cardData.beats}♪`,
-                  pos: k.vec2(x + 110/2 * cardScale - 20 * cardScale, y - 150/2 * cardScale + 20 * cardScale),
-                  size: 14 * cardScale,
-                  font: 'sans-serif',
-                  anchor: 'center',
-                  color: k.WHITE,
-                });
-              }
-
-              // Draw card name
-              k.drawText({
-                text: cardData.name,
-                pos: k.vec2(x, y - 150/2 * cardScale + 45 * cardScale),
-                size: 12 * cardScale,
-                font: 'sans-serif',
-                anchor: 'center',
-                color: k.BLACK,
-                width: 100 * cardScale,
-              });
-
-              // Draw type badge
-              const typeColors = {
-                rhythm: [220, 50, 50],
-                bass: [50, 150, 220],
-                utility: [150, 220, 50],
-              };
-
-              k.drawRect({
-                pos: k.vec2(x - 100/2 * cardScale, y - 150/2 * cardScale + 65 * cardScale - 8 * cardScale),
-                width: 100 * cardScale,
-                height: 16 * cardScale,
-                radius: 2,
-                color: k.rgb(...(typeColors[cardData.type] || [100, 100, 100])),
-              });
-
-              k.drawText({
-                text: cardData.type.toUpperCase(),
-                pos: k.vec2(x, y - 150/2 * cardScale + 65 * cardScale),
-                size: 10 * cardScale,
-                font: 'sans-serif',
-                anchor: 'center',
-                color: k.WHITE,
-              });
-
-              // Draw description
-              k.drawText({
-                text: cardData.description,
-                pos: k.vec2(x, y + 15 * cardScale),
-                size: 9 * cardScale,
-                font: 'sans-serif',
-                anchor: 'center',
-                color: k.BLACK,
-                width: 95 * cardScale,
-                lineSpacing: 2,
-              });
-            });
-          }
-        }
-      ]);
-
-      viewerObjects.push(overlayDrawer);
-
-      // Create invisible click area for closing
-      const clickArea = k.add([
-        k.rect(k.width(), k.height()),
-        k.pos(0, 0),
-        k.area(),
-        k.z(999), // Just below the drawer
-        k.opacity(0),
-      ]);
-
-      clickArea.onClick(() => {
-        console.log('Overlay clicked - closing');
-        closePileViewer();
-        onClose();
-      });
-
-      viewerObjects.push(clickArea);
+      // Store viewer data
+      viewerData = {
+        title,
+        pile: shuffledPile,
+        pileLength: pile.length,
+        onClose,
+      };
 
       // Scroll handling
       const cardScale = 0.7;
@@ -462,25 +252,50 @@ export function combatScene(k) {
         scrollOffset = Math.max(0, Math.min(maxScroll, scrollOffset - delta.y * 20));
       });
 
-      console.log('Viewer created with', shuffledPile.length, 'cards');
+      // Handle clicks to close
+      const clickHandler = k.onMousePress(() => {
+        const mousePos = k.mousePos();
+        // Check if click is on close button
+        const btnX = k.width() / 2;
+        const btnY = k.height() - 50;
+        const btnW = 100;
+        const btnH = 40;
+        
+        if (mousePos.x >= btnX - btnW/2 && mousePos.x <= btnX + btnW/2 &&
+            mousePos.y >= btnY - btnH/2 && mousePos.y <= btnY + btnH/2) {
+          console.log('Close button clicked');
+          closePileViewer();
+          onClose();
+        } else {
+          // Click anywhere else also closes
+          console.log('Overlay clicked - closing');
+          closePileViewer();
+          onClose();
+        }
+      });
+
+      // Store handler for cleanup
+      if (!scrollHandler.clickHandler) {
+        scrollHandler.clickHandler = clickHandler;
+      }
+
+      console.log('Viewer setup complete with', shuffledPile.length, 'cards');
     }
 
     function closePileViewer() {
       console.log('Closing pile viewer');
       
+      // Clear viewer data
+      viewerData = null;
+      
       // Remove scroll handler
       if (scrollHandler) {
         scrollHandler.cancel();
+        if (scrollHandler.clickHandler) {
+          scrollHandler.clickHandler.cancel();
+        }
         scrollHandler = null;
       }
-
-      // Destroy all viewer objects
-      viewerObjects.forEach(obj => {
-        if (obj && obj.destroy) {
-          obj.destroy();
-        }
-      });
-      viewerObjects = [];
       
       scrollOffset = 0;
     }
@@ -492,6 +307,217 @@ export function combatScene(k) {
     function closeDiscardViewer() {
       closePileViewer();
     }
+
+    // Global draw handler for viewer overlay
+    k.onDraw(() => {
+      if (!viewerData) return;
+
+      console.log('Drawing viewer overlay'); // Debug
+
+      const { title, pile, pileLength } = viewerData;
+
+      // Draw dark overlay
+      k.drawRect({
+        pos: k.vec2(0, 0),
+        width: k.width(),
+        height: k.height(),
+        color: k.rgb(0, 0, 0, 180),
+        z: 1000,
+      });
+
+      // Draw title
+      k.drawText({
+        text: title,
+        pos: k.vec2(k.width() / 2, 40),
+        size: 32,
+        font: 'sans-serif',
+        anchor: 'center',
+        color: k.WHITE,
+        z: 1001,
+      });
+
+      // Draw card count
+      k.drawText({
+        text: `${pileLength} cards`,
+        pos: k.vec2(k.width() / 2, 75),
+        size: 18,
+        font: 'sans-serif',
+        anchor: 'center',
+        color: k.rgb(180, 180, 180),
+        z: 1001,
+      });
+
+      // Draw scroll hint if needed
+      const cardScale = 0.7;
+      const cardH = 150 * cardScale;
+      const gap = 15;
+      const cols = 5;
+      const rows = Math.ceil(pile.length / cols);
+      const maxScroll = Math.max(0, rows * (cardH + gap) - 400);
+      
+      if (maxScroll > 0) {
+        k.drawText({
+          text: 'Scroll with mouse wheel',
+          pos: k.vec2(k.width() / 2, 100),
+          size: 14,
+          font: 'sans-serif',
+          anchor: 'center',
+          color: k.rgb(150, 150, 150),
+          z: 1001,
+        });
+      }
+
+      // Draw close button
+      const btnX = k.width() / 2;
+      const btnY = k.height() - 50;
+      const btnW = 100;
+      const btnH = 40;
+      
+      k.drawRect({
+        pos: k.vec2(btnX - btnW/2, btnY - btnH/2),
+        width: btnW,
+        height: btnH,
+        radius: 4,
+        color: k.rgb(100, 100, 100),
+        outline: { width: 2, color: k.WHITE },
+        z: 1001,
+      });
+
+      k.drawText({
+        text: 'CLOSE',
+        pos: k.vec2(btnX, btnY),
+        size: 18,
+        font: 'sans-serif',
+        anchor: 'center',
+        color: k.WHITE,
+        z: 1002,
+      });
+
+      // Draw cards
+      const cardW = 110 * cardScale;
+      const startX = (k.width() - (cols * (cardW + gap) - gap)) / 2;
+      const startY = 120 - scrollOffset;
+
+      pile.forEach((cardKey, i) => {
+        const cardData = CARDS[cardKey];
+        if (!cardData) return;
+
+        const col = i % cols;
+        const row = Math.floor(i / cols);
+        const x = startX + col * (cardW + gap);
+        const y = startY + row * (cardH + gap);
+
+        // Skip if card is off-screen
+        if (y + cardH < 120 || y > k.height() - 100) return;
+
+        const cardColor = getCardColor(cardData);
+        const borderColor = getRarityBorderColor(cardData.rarity);
+
+        // Draw card background
+        k.drawRect({
+          pos: k.vec2(x - 110/2 * cardScale, y - 150/2 * cardScale),
+          width: 110 * cardScale,
+          height: 150 * cardScale,
+          radius: 4,
+          color: k.rgb(...cardColor),
+          outline: { width: 3, color: k.rgb(...borderColor) },
+          z: 1001,
+        });
+
+        // Draw mana cost
+        k.drawCircle({
+          pos: k.vec2(x - 110/2 * cardScale + 20 * cardScale, y - 150/2 * cardScale + 20 * cardScale),
+          radius: 16 * cardScale,
+          color: k.rgb(100, 200, 255),
+          outline: { width: 2, color: k.BLACK },
+          z: 1002,
+        });
+
+        k.drawText({
+          text: cardData.mana.toString(),
+          pos: k.vec2(x - 110/2 * cardScale + 20 * cardScale, y - 150/2 * cardScale + 20 * cardScale),
+          size: 18 * cardScale,
+          font: 'sans-serif',
+          anchor: 'center',
+          color: k.WHITE,
+          z: 1003,
+        });
+
+        // Draw beats indicator for rhythm/bass
+        if (cardData.type !== 'utility' && cardData.beats > 0) {
+          k.drawRect({
+            pos: k.vec2(x + 110/2 * cardScale - 20 * cardScale - 15 * cardScale, y - 150/2 * cardScale + 10 * cardScale),
+            width: 30 * cardScale,
+            height: 20 * cardScale,
+            radius: 2,
+            color: k.rgb(0, 0, 0, 150),
+            outline: { width: 1, color: k.rgb(200, 200, 200) },
+            z: 1002,
+          });
+
+          k.drawText({
+            text: `${cardData.beats}♪`,
+            pos: k.vec2(x + 110/2 * cardScale - 20 * cardScale, y - 150/2 * cardScale + 20 * cardScale),
+            size: 14 * cardScale,
+            font: 'sans-serif',
+            anchor: 'center',
+            color: k.WHITE,
+            z: 1003,
+          });
+        }
+
+        // Draw card name
+        k.drawText({
+          text: cardData.name,
+          pos: k.vec2(x, y - 150/2 * cardScale + 45 * cardScale),
+          size: 12 * cardScale,
+          font: 'sans-serif',
+          anchor: 'center',
+          color: k.BLACK,
+          width: 100 * cardScale,
+          z: 1002,
+        });
+
+        // Draw type badge
+        const typeColors = {
+          rhythm: [220, 50, 50],
+          bass: [50, 150, 220],
+          utility: [150, 220, 50],
+        };
+
+        k.drawRect({
+          pos: k.vec2(x - 100/2 * cardScale, y - 150/2 * cardScale + 65 * cardScale - 8 * cardScale),
+          width: 100 * cardScale,
+          height: 16 * cardScale,
+          radius: 2,
+          color: k.rgb(...(typeColors[cardData.type] || [100, 100, 100])),
+          z: 1002,
+        });
+
+        k.drawText({
+          text: cardData.type.toUpperCase(),
+          pos: k.vec2(x, y - 150/2 * cardScale + 65 * cardScale),
+          size: 10 * cardScale,
+          font: 'sans-serif',
+          anchor: 'center',
+          color: k.WHITE,
+          z: 1003,
+        });
+
+        // Draw description
+        k.drawText({
+          text: cardData.description,
+          pos: k.vec2(x, y + 15 * cardScale),
+          size: 9 * cardScale,
+          font: 'sans-serif',
+          anchor: 'center',
+          color: k.BLACK,
+          width: 95 * cardScale,
+          lineSpacing: 2,
+          z: 1002,
+        });
+      });
+    });
 
     // Enemy display
     k.add([
