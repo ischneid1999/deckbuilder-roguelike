@@ -19,7 +19,7 @@ export const CARDS = {
     name: 'Basic Strum',
     type: 'rhythm',
     rarity: 'starter',
-    beats: 1,
+    beats: 2,
     mana: 1,
     description: 'Deal 6 damage',
     effects: [
@@ -153,7 +153,7 @@ export const CARDS = {
     name: 'Bass Line',
     type: 'bass',
     rarity: 'starter',
-    beats: 1,
+    beats: 2,
     mana: 1,
     description: 'Gain 5 block',
     effects: [
