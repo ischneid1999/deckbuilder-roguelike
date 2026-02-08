@@ -150,8 +150,10 @@ export function createDragDropSystem(k, measureUI, cardSystem) {
         card.placedTrack = track;
         card.placedBeat = beat;
         card.angle = 0;
+        card.canPickUp = true; // Can always pick up on the turn it's placed
 
-        // Execute instant effects (like Syncopation's draw)
+        // Check for loop effects and set initial loop count
+        card.loopCount = 0;
         if (card.cardData.effects) {
           card.cardData.effects.forEach(effect => {
             // Syncopation: draw happens immediately, not during beat resolution
@@ -160,6 +162,11 @@ export function createDragDropSystem(k, measureUI, cardSystem) {
                 combatState.drawCards(effect.value);
                 console.log(`Syncopation: Drew ${effect.value} card(s) instantly`);
               }
+            }
+            // Set loop count for looping cards
+            if (effect.type === 'loop') {
+              card.loopCount = effect.value;
+              console.log(`${card.cardData.name}: Loop ${effect.value} set`);
             }
           });
         }
@@ -227,6 +234,12 @@ export function createDragDropSystem(k, measureUI, cardSystem) {
       card.onClick(() => {
         if (combatState.currentTurn !== 'player') return;
         if (!card.isPlaced) return;
+
+        // Can't pick up looping cards after they've started looping
+        if (!card.canPickUp) {
+          console.log('Cannot pick up looping card:', card.cardData.name, 'loops remaining:', card.loopCount);
+          return;
+        }
 
         console.log('Picking up placed card:', card.cardData.name);
 

@@ -146,6 +146,19 @@ export const CARDS = {
     ],
   },
 
+  chordProgression: {
+    id: 'chordProgression',
+    name: 'Chord Progression',
+    type: 'rhythm',
+    rarity: 'uncommon',
+    beats: 4,
+    mana: 2,
+    description: 'Deal damage equal to 2x the beat',
+    effects: [
+      { type: 'beatMultipliedDamage', value: 2, target: 'enemy' }
+    ],
+  },
+
   // ===== BASS CARDS (Block/Defense) =====
 
   bassLine: {
@@ -234,7 +247,7 @@ export const CARDS = {
     id: 'harmony',
     name: 'Harmony',
     type: 'rhythm',
-    rarity: 'rare',
+    rarity: 'uncommon',
     beats: 2,
     mana: 2,
     description: 'Deal 10 damage. If bass is playing, deal 10 more.',
@@ -248,13 +261,27 @@ export const CARDS = {
     id: 'syncopation',
     name: 'Syncopation',
     type: 'bass',
-    rarity: 'rare',
+    rarity: 'common',
     beats: 1,
     mana: 1,
     description: 'Gain 3 block. Draw 1 card.',
     effects: [
       { type: 'block', value: 3, target: 'player' },
       { type: 'draw', value: 1, target: 'player' }
+    ],
+  },
+
+  catchyHook: {
+    id: 'catchyHook',
+    name: 'Catchy Hook',
+    type: 'bass',
+    rarity: 'common',
+    beats: 1,
+    mana: 1,
+    description: 'Gain 5 block. Loop 1.',
+    effects: [
+      { type: 'block', value: 5, target: 'player' },
+      { type: 'loop', value: 1 }
     ],
   },
 };

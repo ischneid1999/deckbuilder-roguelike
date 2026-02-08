@@ -172,10 +172,15 @@ export function createMeasureUI(k) {
               const beatsInMeasure = Math.min(c.cardData.beats, 4 - c.startBeat);
               const occupiesBeat = beat >= c.startBeat && beat < c.startBeat + beatsInMeasure;
               const resolvesOnBeat = c.resolveBeat === beat && !c.wrapsAround;
+
+              // Per-beat effects trigger on every occupied beat
+              if (occupiesBeat) {
+                c.cardData.effects.filter(e => e.type === 'damagePerBeat' || e.type === 'beatMultipliedDamage').forEach(e => effects.push(e));
+              }
+
+              // Non-per-beat effects trigger only on resolve beat
               if (resolvesOnBeat) {
-                c.cardData.effects.forEach(e => effects.push(e));
-              } else if (occupiesBeat) {
-                c.cardData.effects.filter(e => e.type === 'damagePerBeat').forEach(e => effects.push(e));
+                c.cardData.effects.filter(e => e.type !== 'damagePerBeat' && e.type !== 'beatMultipliedDamage').forEach(e => effects.push(e));
               }
             }
           });
@@ -188,10 +193,15 @@ export function createMeasureUI(k) {
               const beatsInMeasure = Math.min(c.cardData.beats, 4 - c.startBeat);
               const occupiesBeat = beat >= c.startBeat && beat < c.startBeat + beatsInMeasure;
               const resolvesOnBeat = c.resolveBeat === beat && !c.wrapsAround;
+
+              // Per-beat effects trigger on every occupied beat
+              if (occupiesBeat) {
+                c.cardData.effects.filter(e => e.type === 'damagePerBeat' || e.type === 'beatMultipliedDamage').forEach(e => effects.push(e));
+              }
+
+              // Non-per-beat effects trigger only on resolve beat
               if (resolvesOnBeat) {
-                c.cardData.effects.forEach(e => effects.push(e));
-              } else if (occupiesBeat) {
-                c.cardData.effects.filter(e => e.type === 'damagePerBeat').forEach(e => effects.push(e));
+                c.cardData.effects.filter(e => e.type !== 'damagePerBeat' && e.type !== 'beatMultipliedDamage').forEach(e => effects.push(e));
               }
             }
           });
@@ -212,6 +222,7 @@ export function createMeasureUI(k) {
           let hasDynamic = false;
           effects.forEach(e => {
             if (e.type === 'damage' || e.type === 'damagePerBeat') totalDmg += e.value;
+            if (e.type === 'beatMultipliedDamage') totalDmg += e.value * (beat + 1); // Calculate damage for this specific beat
             if (e.type === 'block') totalBlk += e.value;
             if (e.type === 'conditionalDamage') { totalDmg += e.value; hasConditional = true; }
             if (e.type === 'damageEqualBlock') hasDynamic = true;

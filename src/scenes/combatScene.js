@@ -123,6 +123,12 @@ export function combatScene(k) {
     let discardViewerOpen = false;
     let viewerData = null;
 
+    // Playtest feature
+    let playtestActive = false;
+    let playtestInput = '';
+    let playtestJustOpened = false;
+    let playtestOverlay = null;
+
     const drawPileBtn = k.add([
       k.rect(90, 50, { radius: 4 }),
       k.pos(30, 80),
@@ -483,6 +489,167 @@ export function combatScene(k) {
       dragDropSystem.handleMouseRelease(handCards, combatState);
     });
 
+    function createPlaytestOverlay() {
+      // Background overlay
+      const bg = k.add([
+        k.rect(k.width(), k.height()),
+        k.pos(0, 0),
+        k.color(0, 0, 0),
+        k.opacity(0.9),
+        k.z(500),
+        'playtestUI',
+      ]);
+
+      // Input box
+      const boxW = 600;
+      const boxH = 120;
+      const boxX = k.width() / 2 - boxW / 2;
+      const boxY = k.height() / 2 - boxH / 2;
+
+      const box = k.add([
+        k.rect(boxW, boxH, { radius: 8 }),
+        k.pos(k.width() / 2, k.height() / 2),
+        k.anchor('center'),
+        k.color(40, 40, 50),
+        k.outline(3, k.rgb(100, 150, 255)),
+        k.z(501),
+        'playtestUI',
+      ]);
+
+      // Title
+      const title = k.add([
+        k.text('PLAYTEST - Add Card', { size: 20, font: 'sans-serif' }),
+        k.pos(k.width() / 2, boxY + 25),
+        k.anchor('center'),
+        k.color(100, 150, 255),
+        k.z(502),
+        'playtestUI',
+      ]);
+
+      // Input text (will update dynamically)
+      const inputText = k.add([
+        k.text('|', { size: 24, font: 'sans-serif' }),
+        k.pos(k.width() / 2, boxY + 60),
+        k.anchor('center'),
+        k.color(255, 255, 255),
+        k.z(502),
+        'playtestUI',
+        {
+          update() {
+            this.text = playtestInput + '|';
+          }
+        }
+      ]);
+
+      // Instructions
+      const instructions = k.add([
+        k.text('Type card name | Enter to add | Esc to cancel', { size: 14, font: 'sans-serif' }),
+        k.pos(k.width() / 2, boxY + 95),
+        k.anchor('center'),
+        k.color(180, 180, 180),
+        k.z(502),
+        'playtestUI',
+      ]);
+
+      playtestOverlay = { bg, box, title, inputText, instructions };
+    }
+
+    function destroyPlaytestOverlay() {
+      k.destroyAll('playtestUI');
+      playtestOverlay = null;
+    }
+
+    // Playtest feature keyboard handlers
+    k.onKeyPress('p', () => {
+      if (!playtestActive && combatState.currentTurn === 'player') {
+        console.log('Opening playtest');
+        playtestActive = true;
+        playtestInput = '';
+        playtestJustOpened = true;
+        createPlaytestOverlay();
+        // Clear the flag after a tiny delay to ignore the 'p' character
+        k.wait(0.01, () => {
+          playtestJustOpened = false;
+          console.log('Ready for input');
+        });
+      }
+    });
+
+    k.onKeyPress('escape', () => {
+      if (playtestActive) {
+        console.log('Closing playtest');
+        playtestActive = false;
+        playtestInput = '';
+        playtestJustOpened = false;
+        destroyPlaytestOverlay();
+      }
+    });
+
+    k.onKeyPress('enter', () => {
+      if (playtestActive && playtestInput.trim() !== '') {
+        console.log('Adding card:', playtestInput);
+        addCardFromPlaytest(playtestInput.trim());
+        playtestActive = false;
+        playtestInput = '';
+        playtestJustOpened = false;
+        destroyPlaytestOverlay();
+      }
+    });
+
+    k.onKeyPress('backspace', () => {
+      if (playtestActive && playtestInput.length > 0) {
+        playtestInput = playtestInput.slice(0, -1);
+        console.log('Input after backspace:', playtestInput);
+      }
+    });
+
+    k.onCharInput((ch) => {
+      console.log('Char input:', ch, 'Active:', playtestActive, 'JustOpened:', playtestJustOpened);
+      if (playtestActive && !playtestJustOpened) {
+        playtestInput += ch;
+        console.log('Added char, input now:', playtestInput);
+      }
+    });
+
+    function addCardFromPlaytest(input) {
+      // Find matching card (case-insensitive partial match)
+      const searchLower = input.toLowerCase();
+      let matchedKey = null;
+
+      // Try exact match first
+      for (const [key, cardData] of Object.entries(CARDS)) {
+        if (cardData.name.toLowerCase() === searchLower) {
+          matchedKey = key;
+          break;
+        }
+      }
+
+      // If no exact match, try partial match
+      if (!matchedKey) {
+        for (const [key, cardData] of Object.entries(CARDS)) {
+          if (cardData.name.toLowerCase().includes(searchLower)) {
+            matchedKey = key;
+            break;
+          }
+        }
+      }
+
+      if (!matchedKey) {
+        console.log('No card found matching:', input);
+        return;
+      }
+
+      const cardData = CARDS[matchedKey];
+      console.log('Adding card from playtest:', cardData.name);
+
+      // Create card and add to hand
+      const card = cardSystem.createCard(cardData, 0, 0, true);
+      card.deckCardKey = matchedKey;
+      dragDropSystem.setupCardDrag(card, handCards, combatState);
+      handCards.push(card);
+      cardSystem.layoutHand(handCards);
+    }
+
     function playLoop() {
       combatState.currentTurn = 'resolving';
       combatState.blockGainedThisLoop = 0;
@@ -591,6 +758,11 @@ export function combatScene(k) {
           const { actual, blocked, multi } = dealDamageToEnemy(effect.value, beat);
           return `Flourish: ${actual} damage${blocked > 0 ? ` (${blocked} blocked)` : ''}${multi}`;
         }
+        case 'beatMultipliedDamage': {
+          const dmgValue = effect.value * (beat + 1); // Beat 0=2, Beat 1=4, Beat 2=6, Beat 3=8
+          const { actual, blocked, multi } = dealDamageToEnemy(dmgValue, beat);
+          return `Chord Progression: ${actual} damage${blocked > 0 ? ` (${blocked} blocked)` : ''}${multi}`;
+        }
         case 'damageEqualBlock': {
           const dmgValue = combatState.blockGainedThisLoop;
           if (dmgValue <= 0) return `Violent Riff: 0 damage (no block gained)`;
@@ -663,11 +835,39 @@ export function combatScene(k) {
         beatLog.push(`--- ${wrappedEnemyActions.length} enemy action(s) delayed to next loop ---`);
       }
       const { rhythmCards, bassCards } = measureUI.getPlacedCards();
+
+      // Separate cards with loops remaining from those to discard
+      const cardsToLoop = [];
+      const cardsToDiscard = [];
+
       [...rhythmCards, ...bassCards].forEach(card => {
+        if (card.loopCount && card.loopCount > 0) {
+          // Decrement loop count and keep on track
+          card.loopCount--;
+          card.canPickUp = false; // Can't pick up once it starts looping
+          cardsToLoop.push(card);
+          beatLog.push(`--- ${card.cardData.name} loops (${card.loopCount} remaining) ---`);
+        } else {
+          // No loops remaining, discard as usual
+          cardsToDiscard.push(card);
+        }
+      });
+
+      // Discard cards with no loops remaining
+      cardsToDiscard.forEach(card => {
         combatState.discardPile.push(card.deckCardKey);
         card.destroy();
       });
+
+      // Clear measure but keep looping cards
       measureUI.clearMeasure();
+
+      // Re-place looping cards on the measure
+      cardsToLoop.forEach(card => {
+        measureUI.placeCard(card, card.placedTrack, card.placedBeat);
+        card.isPlaced = true;
+      });
+
       discardHand();
       measureUI.setWrappedCards(wrappedCards);
       combatState.playerBlock = 0;
@@ -700,7 +900,7 @@ export function combatScene(k) {
       k.go('gameover', { gameState });
     }
 
-    // Global draw handler for viewer overlay - REGISTERED LAST SO IT DRAWS ON TOP
+    // Global draw handler for viewer overlay
     k.onDraw(() => {
       if (!viewerData) return;
 
@@ -886,5 +1086,6 @@ export function combatScene(k) {
         });
       });
     });
+
   });
 }

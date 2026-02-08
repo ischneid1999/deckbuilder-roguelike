@@ -121,6 +121,37 @@ export function createCardSystem(k) {
         k.z(1),
       ]);
 
+      // Loop count indicator (dynamic, shown when loopCount > 0)
+      card.add([
+        k.pos(0, cardHeight/2 - 15),
+        k.z(3),
+        {
+          draw() {
+            if (card.loopCount && card.loopCount > 0) {
+              const loopBgWidth = 50;
+              const loopBgHeight = 18;
+
+              k.drawRect({
+                pos: k.vec2(-loopBgWidth/2, -loopBgHeight/2),
+                width: loopBgWidth,
+                height: loopBgHeight,
+                radius: 3,
+                color: k.rgb(255, 215, 0),
+                outline: { width: 2, color: k.BLACK },
+              });
+
+              k.drawText({
+                text: `LOOP ${card.loopCount}`,
+                size: 10,
+                font: 'sans-serif',
+                anchor: 'center',
+                color: k.BLACK,
+              });
+            }
+          }
+        }
+      ]);
+
       // Hover effect (if draggable)
       // Scale up in place (don't move position) so the enlarged area
       // fully covers the small card - prevents hover flicker
