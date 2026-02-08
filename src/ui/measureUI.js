@@ -564,15 +564,15 @@ export function createMeasureUI(k) {
       });
     },
 
-     // Delay all enemy actions by N beats
+     // Delay all enemy actions by N beats (including current beat)
     // Actions that wrap past beat 3 are marked for next loop
-    delayEnemyActions(beats, currentBeat) {
+    delayAllEnemyActions(beats, currentBeat) {
       const delayed = [];
       const wrappedToNext = [];
-      
+
       measureState.enemyActions.forEach(action => {
-        // Only delay actions that haven't happened yet
-        if (action.beat > currentBeat) {
+        // Delay actions on current beat and future beats (>= instead of >)
+        if (action.beat >= currentBeat) {
           const newBeat = action.beat + beats;
           if (newBeat > 3) {
             // Wrap to next loop

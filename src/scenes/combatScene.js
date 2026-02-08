@@ -495,16 +495,54 @@ export function combatScene(k) {
       }
       measureUI.setPlayhead(beat);
       const actions = measureUI.getActionsForBeat(beat);
+
+      // PHASE 1: Delay effects (Octave Switch) - move enemy actions BEFORE they resolve
       actions.playerEffects.forEach(cardData => {
         cardData.effects.forEach(effect => {
-          const logEntry = executeEffect(effect, 'player', beat);
-          if (logEntry) beatLog.push(`Beat ${beat + 1}: ${logEntry}`);
+          if (effect.type === 'delayEnemy') {
+            const logEntry = executeEffect(effect, 'player', beat);
+            if (logEntry) beatLog.push(`Beat ${beat + 1}: ${logEntry}`);
+          }
         });
       });
-      actions.enemyEffects.forEach(action => {
-        const logEntry = executeEnemyAction(action);
-        if (logEntry) beatLog.push(`Beat ${beat + 1}: ${logEntry}`);
+
+      // Re-fetch actions after potential delays
+      const updatedActions = measureUI.getActionsForBeat(beat);
+
+      // PHASE 2: Block effects (player and enemy together)
+      updatedActions.playerEffects.forEach(cardData => {
+        cardData.effects.forEach(effect => {
+          if (effect.type === 'block') {
+            const logEntry = executeEffect(effect, 'player', beat);
+            if (logEntry) beatLog.push(`Beat ${beat + 1}: ${logEntry}`);
+          }
+        });
       });
+
+      updatedActions.enemyEffects.forEach(action => {
+        if (action.type === 'block') {
+          const logEntry = executeEnemyAction(action);
+          if (logEntry) beatLog.push(`Beat ${beat + 1}: ${logEntry}`);
+        }
+      });
+
+      // PHASE 3: Damage and other effects (player first, then enemy)
+      updatedActions.playerEffects.forEach(cardData => {
+        cardData.effects.forEach(effect => {
+          if (effect.type !== 'block' && effect.type !== 'delayEnemy') {
+            const logEntry = executeEffect(effect, 'player', beat);
+            if (logEntry) beatLog.push(`Beat ${beat + 1}: ${logEntry}`);
+          }
+        });
+      });
+
+      updatedActions.enemyEffects.forEach(action => {
+        if (action.type === 'attack') {
+          const logEntry = executeEnemyAction(action);
+          if (logEntry) beatLog.push(`Beat ${beat + 1}: ${logEntry}`);
+        }
+      });
+
       if (combatState.enemyHP <= 0 || combatState.playerHP <= 0) {
         measureUI.setPlayhead(-1);
         k.wait(0.5, () => {
@@ -559,8 +597,9 @@ export function combatScene(k) {
           return `Bonus ${actual} damage! (${condLabel})${blocked > 0 ? ` (${blocked} blocked)` : ''}${multi}`;
         }
         case 'delayEnemy': {
-          measureUI.delayEnemyActions(effect.value, beat);
-          return `Enemy actions delayed ${effect.value} beat!`;
+          // Move ALL enemy intentions forward, including current beat
+          measureUI.delayAllEnemyActions(effect.value, beat);
+          return `All enemy actions delayed ${effect.value} beat!`;
         }
         case 'doubleDamageNext': {
           combatState.nextLoopDoubleDamage = true;
