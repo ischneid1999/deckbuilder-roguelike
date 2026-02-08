@@ -110,7 +110,7 @@ export const CARDS = {
     name: 'Octave Switch',
     type: 'rhythm',
     rarity: 'common',
-    beats: 2,
+    beats: 1,
     mana: 2,
     description: 'Deal 5 damage. Delay enemy attacks 1 beat.',
     effects: [
