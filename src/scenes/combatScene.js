@@ -83,6 +83,234 @@ export function combatScene(k) {
       k.color(200, 200, 200),
     ]);
 
+    // Deck pile viewer state
+    let deckViewerOpen = false;
+    let discardViewerOpen = false;
+
+    // Draw pile button
+    const drawPileBtn = k.add([
+      k.rect(90, 50, { radius: 4 }),
+      k.pos(30, 80),
+      k.color(50, 80, 120),
+      k.outline(2, k.rgb(100, 150, 200)),
+      k.area(),
+      k.z(10),
+    ]);
+
+    drawPileBtn.add([
+      k.text('DRAW', { size: 14, font: 'sans-serif' }),
+      k.pos(45, 15),
+      k.anchor('center'),
+      k.color(k.WHITE),
+    ]);
+
+    drawPileBtn.add([
+      k.pos(45, 35),
+      k.anchor('center'),
+      k.z(1),
+      {
+        draw() {
+          k.drawText({
+            text: `${combatState.drawPile.length}`,
+            size: 18,
+            font: 'sans-serif',
+            anchor: 'center',
+            color: k.rgb(200, 220, 255),
+          });
+        }
+      }
+    ]);
+
+    drawPileBtn.onHoverUpdate(() => {
+      drawPileBtn.color = k.rgb(60, 90, 140);
+      k.setCursor('pointer');
+    });
+
+    drawPileBtn.onHoverEnd(() => {
+      drawPileBtn.color = k.rgb(50, 80, 120);
+      k.setCursor('default');
+    });
+
+    drawPileBtn.onClick(() => {
+      if (discardViewerOpen) return;
+      deckViewerOpen = !deckViewerOpen;
+      if (deckViewerOpen) showDeckViewer();
+      else closeDeckViewer();
+    });
+
+    // Discard pile button
+    const discardPileBtn = k.add([
+      k.rect(90, 50, { radius: 4 }),
+      k.pos(130, 80),
+      k.color(80, 50, 80),
+      k.outline(2, k.rgb(150, 100, 150)),
+      k.area(),
+      k.z(10),
+    ]);
+
+    discardPileBtn.add([
+      k.text('DISCARD', { size: 14, font: 'sans-serif' }),
+      k.pos(45, 15),
+      k.anchor('center'),
+      k.color(k.WHITE),
+    ]);
+
+    discardPileBtn.add([
+      k.pos(45, 35),
+      k.anchor('center'),
+      k.z(1),
+      {
+        draw() {
+          k.drawText({
+            text: `${combatState.discardPile.length}`,
+            size: 18,
+            font: 'sans-serif',
+            anchor: 'center',
+            color: k.rgb(220, 180, 220),
+          });
+        }
+      }
+    ]);
+
+    discardPileBtn.onHoverUpdate(() => {
+      discardPileBtn.color = k.rgb(90, 60, 90);
+      k.setCursor('pointer');
+    });
+
+    discardPileBtn.onHoverEnd(() => {
+      discardPileBtn.color = k.rgb(80, 50, 80);
+      k.setCursor('default');
+    });
+
+    discardPileBtn.onClick(() => {
+      if (deckViewerOpen) return;
+      discardViewerOpen = !discardViewerOpen;
+      if (discardViewerOpen) showDiscardViewer();
+      else closeDiscardViewer();
+    });
+
+    let viewerOverlay = null;
+    let viewerCards = [];
+
+    function showDeckViewer() {
+      showPileViewer(combatState.drawPile, 'Draw Pile', () => {
+        deckViewerOpen = false;
+      });
+    }
+
+    function showDiscardViewer() {
+      showPileViewer(combatState.discardPile, 'Discard Pile', () => {
+        discardViewerOpen = false;
+      });
+    }
+
+    function showPileViewer(pile, title, onClose) {
+      // Dark overlay
+      viewerOverlay = k.add([
+        k.rect(k.width(), k.height()),
+        k.pos(0, 0),
+        k.color(0, 0, 0, 180),
+        k.z(200),
+        k.area(),
+      ]);
+
+      // Title
+      viewerOverlay.add([
+        k.text(title, { size: 32, font: 'sans-serif' }),
+        k.pos(k.width() / 2, 40),
+        k.anchor('center'),
+        k.color(k.WHITE),
+      ]);
+
+      // Card count
+      viewerOverlay.add([
+        k.text(`${pile.length} cards`, { size: 18, font: 'sans-serif' }),
+        k.pos(k.width() / 2, 75),
+        k.anchor('center'),
+        k.color(180, 180, 180),
+      ]);
+
+      // Close button
+      const closeBtn = viewerOverlay.add([
+        k.rect(100, 40, { radius: 4 }),
+        k.pos(k.width() / 2, k.height() - 50),
+        k.anchor('center'),
+        k.color(100, 100, 100),
+        k.outline(2, k.WHITE),
+        k.area(),
+        k.z(1),
+      ]);
+
+      closeBtn.add([
+        k.text('CLOSE', { size: 18, font: 'sans-serif' }),
+        k.anchor('center'),
+        k.color(k.WHITE),
+      ]);
+
+      closeBtn.onHoverUpdate(() => {
+        closeBtn.color = k.rgb(120, 120, 120);
+        k.setCursor('pointer');
+      });
+
+      closeBtn.onHoverEnd(() => {
+        closeBtn.color = k.rgb(100, 100, 100);
+        k.setCursor('default');
+      });
+
+      closeBtn.onClick(() => {
+        closePileViewer();
+        onClose();
+      });
+
+      // Display cards in grid
+      const cardScale = 0.65;
+      const cardW = 110 * cardScale;
+      const cardH = 150 * cardScale;
+      const gap = 15;
+      const cols = 8;
+      const startX = (k.width() - (cols * (cardW + gap) - gap)) / 2;
+      const startY = 120;
+
+      pile.forEach((cardKey, i) => {
+        const cardData = CARDS[cardKey];
+        if (!cardData) return;
+
+        const col = i % cols;
+        const row = Math.floor(i / cols);
+        const x = startX + col * (cardW + gap);
+        const y = startY + row * (cardH + gap);
+
+        const cardObj = cardSystem.createCard(cardData, x, y, false);
+        cardObj.scale = k.vec2(cardScale, cardScale);
+        cardObj.z = 201;
+        viewerCards.push(cardObj);
+        viewerOverlay.add(cardObj);
+      });
+
+      // Click overlay to close
+      viewerOverlay.onClick(() => {
+        closePileViewer();
+        onClose();
+      });
+    }
+
+    function closePileViewer() {
+      if (viewerOverlay) {
+        viewerCards.forEach(c => c.destroy());
+        viewerCards = [];
+        viewerOverlay.destroy();
+        viewerOverlay = null;
+      }
+    }
+
+    function closeDeckViewer() {
+      closePileViewer();
+    }
+
+    function closeDiscardViewer() {
+      closePileViewer();
+    }
+
     // Enemy display
     k.add([
       k.rect(100, 100),
@@ -420,7 +648,7 @@ export function combatScene(k) {
           drawCards(effect.value);
           return `Draw ${effect.value} cards`;
         case 'gainMana':
-          combatState.mana = Math.min(combatState.maxMana, combatState.mana + effect.value);
+          combatState.mana += effect.value;
           return `Gain ${effect.value} mana`;
         default:
           return null;

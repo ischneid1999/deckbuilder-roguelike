@@ -199,7 +199,7 @@ export function createDragDropSystem(k, measureUI, cardSystem) {
             console.log(`Draw ${effect.value} cards`);
             break;
           case 'gainMana':
-            combatState.mana = Math.min(combatState.maxMana, combatState.mana + effect.value);
+            combatState.mana += effect.value;
             break;
           case 'clearMeasure':
             console.log('Clear measure');
