@@ -1,5 +1,7 @@
 // Drag and drop system for cards
 
+import { CARDS } from '../config/cardData.js';
+
 export function createDragDropSystem(k, measureUI, cardSystem) {
   let draggedCard = null;
   let dragOffset = k.vec2(0, 0);
@@ -447,13 +449,9 @@ export function createDragDropSystem(k, measureUI, cardSystem) {
           case 'tutorType':
             // Find and draw a random card of the specified type from draw pile
             if (combatState.drawPile && combatState.drawPile.length > 0) {
-              // Import cardData to check card types
-              const { CARD_DATA } = require('../config/cardData.js');
-
               // Filter draw pile for cards matching the type
               const matchingCards = combatState.drawPile.filter(deckCardKey => {
-                const cardId = deckCardKey.split('_')[0]; // Extract card ID from deck key
-                const cardData = CARD_DATA[cardId];
+                const cardData = CARDS[deckCardKey];
                 return cardData && cardData.type === effect.cardType;
               });
 
@@ -467,8 +465,7 @@ export function createDragDropSystem(k, measureUI, cardSystem) {
                 combatState.drawPile.splice(drawPileIndex, 1);
 
                 // Get card data and create card object
-                const cardId = selectedKey.split('_')[0];
-                const selectedCardData = CARD_DATA[cardId];
+                const selectedCardData = CARDS[selectedKey];
                 const tutorCard = cardSystem.createCard(selectedCardData, 0, 0, true);
                 tutorCard.deckCardKey = selectedKey;
 

@@ -29,7 +29,9 @@ export function createMeasureUI(k) {
     },
     echoEffects: []          // Echo effects: [{ beat, type, value, remainingEchoes }]
   };
-
+  const getEchoesForBeat = (beat) => {
+      return measureState.echoEffects.filter(echo => echo.beat === beat);
+    };
   // Create measure container
   const measure = k.add([
     k.pos(measureX, measureY),
@@ -307,7 +309,7 @@ export function createMeasureUI(k) {
           });
 
           // Check echo effects for this beat
-          const echoes = this.getEchoesForBeat(beat);
+          const echoes = getEchoesForBeat(beat);
           echoes.forEach(echo => {
             effects.push({ type: echo.type, value: echo.value, target: 'player' });
           });
@@ -820,7 +822,10 @@ export function createMeasureUI(k) {
 
       return { rhythmCards, bassCards };
     },
-
+ // Get echo effects for a specific beat
+    getEchoesForBeat(beat) {
+      return getEchoesForBeat(beat);
+    },
     // Get cards and enemy actions that resolve on a specific beat
     getActionsForBeat(beat) {
       const result = { playerEffects: [], enemyEffects: [] };
