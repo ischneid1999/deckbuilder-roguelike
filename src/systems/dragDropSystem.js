@@ -129,6 +129,14 @@ export function createDragDropSystem(k, measureUI, cardSystem) {
         // Spend mana
         combatState.mana -= card.cardData.mana;
 
+        // Check for crescendo effect (applies immediately)
+        const crescendoEffect = card.cardData.effects.find(e => e.type === 'crescendo');
+        if (crescendoEffect) {
+          combatState.crescendo += crescendoEffect.value;
+          measureUI.setCrescendo(combatState.crescendo);
+          console.log(`${card.cardData.name}: Added ${crescendoEffect.value} crescendo (now ${combatState.crescendo})`);
+        }
+
         // Add to drum track (permanent)
         measureUI.addDrumCard(card);
 
@@ -190,6 +198,9 @@ export function createDragDropSystem(k, measureUI, cardSystem) {
 
         // Check for loop effects and set initial loop count
         card.loopCount = 0;
+        let hasReverb = false;
+        let echoEffect = null;
+        let hasImprovise = false;
         if (card.cardData.effects) {
           card.cardData.effects.forEach(effect => {
             // Draw effects happen immediately, not during beat resolution
@@ -204,11 +215,76 @@ export function createDragDropSystem(k, measureUI, cardSystem) {
               card.loopCount = effect.value;
               console.log(`${card.cardData.name}: Loop ${effect.value} set`);
             }
+            // Check for reverb
+            if (effect.type === 'reverb') {
+              hasReverb = true;
+            }
+            // Check for echo
+            if (effect.type === 'echo') {
+              echoEffect = effect;
+            }
+            // Check for improvise
+            if (effect.type === 'improvise') {
+              hasImprovise = true;
+            }
           });
         }
 
-        // Add click handler to pick up the card again
-        this.setupPlacedCardPickup(card, hand, combatState);
+        // Mark card as improvise if it has the effect
+        if (hasImprovise) {
+          card.hasImprovise = true;
+          console.log(`${card.cardData.name}: Marked for improvise (will be removed from game)`);
+        }
+
+        // Handle echo: create echo entries for each beat the card occupies
+        if (echoEffect) {
+          // Find the primary effect value (block or damage)
+          const primaryEffect = card.cardData.effects.find(e =>
+            e.type === 'block' || e.type === 'damage' ||
+            e.type === 'blockPerBeat' || e.type === 'damagePerBeat'
+          );
+
+          if (primaryEffect) {
+            // Create echo entries for each beat the card occupies
+            for (let i = 0; i < card.cardData.beats; i++) {
+              const echoBeat = (beat + i) % 4; // Wrap around if needed
+              measureUI.addEchoEffect({
+                beat: echoBeat,
+                type: echoEffect.echoType, // 'block' or 'damage'
+                value: primaryEffect.value,
+                remainingEchoes: echoEffect.echoCount
+              });
+            }
+            console.log(`${card.cardData.name}: Created echo effects (${echoEffect.echoCount} echoes)`);
+          }
+        }
+
+        // Handle reverb: create a temporary copy and add to hand
+        if (hasReverb && !card.isReverbCopy) {
+          // Create copy of card data without reverb effect
+          const copyCardData = {
+            ...card.cardData,
+            effects: card.cardData.effects.filter(e => e.type !== 'reverb')
+          };
+
+          // Create the reverb copy
+          const reverbCopy = cardSystem.createCard(copyCardData, 0, 0, true);
+          reverbCopy.deckCardKey = card.deckCardKey; // Same deck key
+          reverbCopy.isReverbCopy = true; // Mark as reverb copy
+          reverbCopy.opacity = 0.7; // Make it transparent
+
+          // Add to hand
+          hand.push(reverbCopy);
+          this.setupCardDrag(reverbCopy, hand, combatState);
+
+          // Re-layout hand to show new card
+          cardSystem.layoutHand(hand);
+
+          console.log(`${card.cardData.name}: Created reverb copy`);
+        }
+
+        // Add click handler for targeting mode
+        this.setupPlacedCardPickup(card, combatState);
 
         console.log('Card placed successfully!');
         return true;
@@ -293,7 +369,7 @@ export function createDragDropSystem(k, measureUI, cardSystem) {
         combatState.mana -= card.cardData.mana;
 
         // Execute effects immediately
-        this.executeCardEffects(card, combatState);
+        this.executeCardEffects(card, combatState, hand);
 
         // Remove from hand
         const index = hand.indexOf(card);
@@ -311,7 +387,7 @@ export function createDragDropSystem(k, measureUI, cardSystem) {
     },
 
     // Execute card effects
-    executeCardEffects(card, combatState) {
+    executeCardEffects(card, combatState, hand) {
       card.cardData.effects.forEach(effect => {
         switch (effect.type) {
           case 'draw':
@@ -343,12 +419,80 @@ export function createDragDropSystem(k, measureUI, cardSystem) {
           case 'clearMeasure':
             console.log('Clear measure');
             break;
+          case 'rewind':
+            // Replay all cards from the last loop
+            if (combatState.lastLoopCards && combatState.lastLoopCards.length > 0) {
+              console.log(`${card.cardData.name}: Rewinding ${combatState.lastLoopCards.length} cards from last loop`);
+
+              combatState.lastLoopCards.forEach(cardData => {
+                // Create a temporary copy (similar to reverb)
+                const rewindCopy = cardSystem.createCard(cardData, 0, 0, true);
+                rewindCopy.deckCardKey = `rewind_${Math.random()}`; // Unique key
+                rewindCopy.isReverbCopy = true; // Use same flag as reverb (temporary card)
+                rewindCopy.opacity = 0.8; // Slightly transparent
+
+                // Add to hand
+                hand.push(rewindCopy);
+                this.setupCardDrag(rewindCopy, hand, combatState);
+
+                console.log(`  - Added ${cardData.name} to hand`);
+              });
+
+              // Re-layout hand to show new cards
+              cardSystem.layoutHand(hand);
+            } else {
+              console.log(`${card.cardData.name}: No cards from last loop to rewind`);
+            }
+            break;
+          case 'tutorType':
+            // Find and draw a random card of the specified type from draw pile
+            if (combatState.drawPile && combatState.drawPile.length > 0) {
+              // Import cardData to check card types
+              const { CARD_DATA } = require('../config/cardData.js');
+
+              // Filter draw pile for cards matching the type
+              const matchingCards = combatState.drawPile.filter(deckCardKey => {
+                const cardId = deckCardKey.split('_')[0]; // Extract card ID from deck key
+                const cardData = CARD_DATA[cardId];
+                return cardData && cardData.type === effect.cardType;
+              });
+
+              if (matchingCards.length > 0) {
+                // Pick a random matching card
+                const randomIndex = Math.floor(Math.random() * matchingCards.length);
+                const selectedKey = matchingCards[randomIndex];
+
+                // Remove from draw pile
+                const drawPileIndex = combatState.drawPile.indexOf(selectedKey);
+                combatState.drawPile.splice(drawPileIndex, 1);
+
+                // Get card data and create card object
+                const cardId = selectedKey.split('_')[0];
+                const selectedCardData = CARD_DATA[cardId];
+                const tutorCard = cardSystem.createCard(selectedCardData, 0, 0, true);
+                tutorCard.deckCardKey = selectedKey;
+
+                // Add to hand
+                hand.push(tutorCard);
+                this.setupCardDrag(tutorCard, hand, combatState);
+
+                // Re-layout hand
+                cardSystem.layoutHand(hand);
+
+                console.log(`${card.cardData.name}: Added ${selectedCardData.name} (${effect.cardType}) to hand from draw pile`);
+              } else {
+                console.log(`${card.cardData.name}: No ${effect.cardType} cards in draw pile`);
+              }
+            } else {
+              console.log(`${card.cardData.name}: Draw pile is empty`);
+            }
+            break;
         }
       });
     },
 
-    // Setup click handler for placed cards to pick them back up
-    setupPlacedCardPickup(card, hand, combatState) {
+    // Setup click handler for placed cards (for targeting only)
+    setupPlacedCardPickup(card, combatState) {
       // Store original color for hover effect (extract RGB values from Color object)
       card.originalColor = card.color ? [card.color.r, card.color.g, card.color.b] : null;
 
@@ -367,7 +511,7 @@ export function createDragDropSystem(k, measureUI, cardSystem) {
         }
       });
 
-      // Remove old click handler by replacing it
+      // Click handler for targeting mode only (cards cannot be picked up once played)
       card.onClick(() => {
         if (combatState.currentTurn !== 'player') return;
         if (!card.isPlaced) return;
@@ -385,54 +529,8 @@ export function createDragDropSystem(k, measureUI, cardSystem) {
           return;
         }
 
-        // Can't pick up looping cards after they've started looping
-        if (!card.canPickUp) {
-          console.log('Cannot pick up looping card:', card.cardData.name, 'loops remaining:', card.loopCount);
-          return;
-        }
-
-        console.log('Picking up placed card:', card.cardData.name);
-
-        // Remove from measure
-        measureUI.removeCard(card, card.placedTrack);
-
-        // Refund mana
-        combatState.mana = Math.min(combatState.maxMana, combatState.mana + card.cardData.mana);
-
-        // Reset card state
-        card.isPlaced = false;
-        card.placedTrack = null;
-        card.placedBeat = null;
-
-        // Reset scale
-        if (card.scale) {
-          card.scale.x = 1;
-          card.scale.y = 1;
-        }
-
-        // Add back to hand at original position
-        const insertIndex = Math.min(card.originalHandIndex !== undefined ? card.originalHandIndex : hand.length, hand.length);
-        hand.splice(insertIndex, 0, card);
-
-        // Re-setup drag for the card BEFORE layoutHand
-        this.setupCardDrag(card, hand, combatState);
-
-        // Start dragging immediately at mouse position
-        const mousePos = k.mousePos();
-        draggedCard = card;
-        isDragging = true;
-        card.isDragging = true;
-        card.angle = 0;
-        card.z = 100;
-        
-        // Set card position to mouse with no offset (feels more natural)
-        dragOffset = k.vec2(0, 0);
-        card.pos = mousePos;
-        
-        k.setCursor('grabbing');
-
-        // Layout hand but it won't affect the dragging card
-        cardSystem.layoutHand(hand);
+        // Cards cannot be picked up once played
+        console.log('Card is locked in place:', card.cardData.name);
       });
     },
   };

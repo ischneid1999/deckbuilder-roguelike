@@ -14,13 +14,20 @@ export function createMeasureUI(k) {
   const measureState = {
     rhythmTrack: [null, null, null, null],
     bassTrack: [null, null, null, null],
-    drumCards: [],           // Permanent drum cards: [{ card, boostedBeats, bonus }]
+    drumCards: [],           // Permanent drum cards: [{ card, boostedBeats, bonus, conditionalBonus, condition }]
     enemyActions: [],       // Array of { beat, type, value }
     wrappedCards: [],        // Cards that wrap to next loop: { cardData, resolveBeat }
     wrappedEnemyActions: [], // Enemy actions delayed to next loop
     playheadBeat: -1,        // Current beat during playback (-1 = not playing)
     isPlaying: false,
     enemyDamageReduction: 0, // Damage reduction from Deafen
+    crescendo: 0,            // Crescendo bonus for rhythm cards
+    preventWrap: false,      // If true, cards cannot wrap to next loop
+    typeModifiers: {         // Modifiers applied to cards of certain types
+      bass: { delay: 0 },    // e.g., bass cards get delay 1 from reggae beat
+      rhythm: { delay: 0 }
+    },
+    echoEffects: []          // Echo effects: [{ beat, type, value, remainingEchoes }]
   };
 
   // Create measure container
@@ -85,7 +92,7 @@ export function createMeasureUI(k) {
   ]);
 
   enemyTrack.add([
-    k.text('ENEMY', { size: 10, font: 'sans-serif' }),
+    k.text('ENEMY', { size: 14, font: 'sans-serif' }),
     k.pos(10, 5),
     k.color(200, 80, 80),
   ]);
@@ -131,7 +138,7 @@ export function createMeasureUI(k) {
           k.drawText({
             text: symbol,
             pos: k.vec2(x + beatWidth / 2, intentBarHeight / 2),
-            size: 10,
+            size: 14,
             anchor: 'center',
             font: 'sans-serif',
             color: k.rgb(255, 255, 255),
@@ -153,7 +160,7 @@ export function createMeasureUI(k) {
   ]);
 
   playerTrack.add([
-    k.text('PLAYER', { size: 10, font: 'sans-serif' }),
+    k.text('PLAYER', { size: 14, font: 'sans-serif' }),
     k.pos(10, 5),
     k.color(80, 200, 80),
   ]);
@@ -179,6 +186,7 @@ export function createMeasureUI(k) {
 
           // Check rhythm cards (resolve beat = all effects, occupied beat = per-beat only)
           const seenRhythm = new Set();
+          let finaleMultiplier = 1; // Track finale multiplier separately
           measureState.rhythmTrack.forEach(c => {
             if (c && !seenRhythm.has(c)) {
               seenRhythm.add(c);
@@ -197,10 +205,38 @@ export function createMeasureUI(k) {
 
               // Non-per-beat effects trigger only on resolve beat
               if (resolvesOnBeat) {
-                c.cardData.effects.filter(e => e.type !== 'damagePerBeat' && e.type !== 'beatMultipliedDamage').forEach(e => effects.push(e));
+                c.cardData.effects.filter(e => e.type !== 'damagePerBeat' && e.type !== 'beatMultipliedDamage' && e.type !== 'beatPositionBlock').forEach(e => effects.push(e));
                 // Apply damage multiplier from card if present
                 if (c.damageMultiplier && c.damageMultiplier > damageMultiplier) {
                   damageMultiplier = c.damageMultiplier;
+                }
+              }
+
+              // Check for beatPositionBlock effects (trigger on occupied beats that match position)
+              if (occupiesBeat) {
+                const beatPosition = beat - c.startBeat;
+                const lastPosition = c.cardData.beats - 1;
+                c.cardData.effects.filter(e => e.type === 'beatPositionBlock').forEach(e => {
+                  let shouldApply = false;
+                  if (e.positions) {
+                    e.positions.forEach(pos => {
+                      if (pos === 'first' && beatPosition === 0) shouldApply = true;
+                      if (pos === 'last' && beatPosition === lastPosition) shouldApply = true;
+                    });
+                  }
+                  if (shouldApply) {
+                    effects.push(e);
+                  }
+                });
+              }
+
+              // Check for finale effect (only once per card)
+              if (occupiesBeat || resolvesOnBeat) {
+                const finalBeat = c.startBeat + c.cardData.beats - 1;
+                const isFinalBeat = beat === finalBeat;
+                const finaleEffect = c.cardData.effects.find(e => e.type === 'finale' && e.applyTo === 'damage');
+                if (isFinalBeat && finaleEffect && finaleEffect.multiplier > finaleMultiplier) {
+                  finaleMultiplier = finaleEffect.multiplier;
                 }
               }
             }
@@ -226,10 +262,38 @@ export function createMeasureUI(k) {
 
               // Non-per-beat effects trigger only on resolve beat
               if (resolvesOnBeat) {
-                c.cardData.effects.filter(e => e.type !== 'damagePerBeat' && e.type !== 'beatMultipliedDamage').forEach(e => effects.push(e));
+                c.cardData.effects.filter(e => e.type !== 'damagePerBeat' && e.type !== 'beatMultipliedDamage' && e.type !== 'beatPositionBlock').forEach(e => effects.push(e));
                 // Apply damage multiplier from card if present
                 if (c.damageMultiplier && c.damageMultiplier > damageMultiplier) {
                   damageMultiplier = c.damageMultiplier;
+                }
+              }
+
+              // Check for beatPositionBlock effects (trigger on occupied beats that match position)
+              if (occupiesBeat) {
+                const beatPosition = beat - c.startBeat;
+                const lastPosition = c.cardData.beats - 1;
+                c.cardData.effects.filter(e => e.type === 'beatPositionBlock').forEach(e => {
+                  let shouldApply = false;
+                  if (e.positions) {
+                    e.positions.forEach(pos => {
+                      if (pos === 'first' && beatPosition === 0) shouldApply = true;
+                      if (pos === 'last' && beatPosition === lastPosition) shouldApply = true;
+                    });
+                  }
+                  if (shouldApply) {
+                    effects.push(e);
+                  }
+                });
+              }
+
+              // Check for finale effect (only once per card)
+              if (occupiesBeat || resolvesOnBeat) {
+                const finalBeat = c.startBeat + c.cardData.beats - 1;
+                const isFinalBeat = beat === finalBeat;
+                const finaleEffect = c.cardData.effects.find(e => e.type === 'finale' && e.applyTo === 'damage');
+                if (isFinalBeat && finaleEffect && finaleEffect.multiplier > finaleMultiplier) {
+                  finaleMultiplier = finaleEffect.multiplier;
                 }
               }
             }
@@ -240,6 +304,12 @@ export function createMeasureUI(k) {
             if (w.resolveBeat === beat) {
               w.cardData.effects.forEach(e => effects.push(e));
             }
+          });
+
+          // Check echo effects for this beat
+          const echoes = this.getEchoesForBeat(beat);
+          echoes.forEach(echo => {
+            effects.push({ type: echo.type, value: echo.value, target: 'player' });
           });
 
           if (effects.length === 0) continue;
@@ -257,7 +327,8 @@ export function createMeasureUI(k) {
           effects.forEach(e => {
             if (e.type === 'damage' || e.type === 'damagePerBeat') baseDmg += e.value;
             if (e.type === 'beatMultipliedDamage') baseDmg += e.value * (beat + 1); // Calculate damage for this specific beat
-            if (e.type === 'block') totalBlk += e.value;
+            if (e.type === 'block' || e.type === 'blockPerBeat') totalBlk += e.value;
+            if (e.type === 'beatPositionBlock') totalBlk += e.value; // beatPositionBlock already filtered by position
             if (e.type === 'conditionalDamage') { baseDmg += e.value; hasConditional = true; }
             if (e.type === 'damageEqualBlock') hasDynamic = true;
           });
@@ -266,15 +337,24 @@ export function createMeasureUI(k) {
           baseDmg += drumBonus;
           totalBlk += drumBonus;
 
-          // Apply damage multiplier
-          const totalDmg = baseDmg * damageMultiplier;
+          // Apply damage multipliers
+          const totalMultiplier = damageMultiplier * finaleMultiplier;
+          const totalDmg = baseDmg * totalMultiplier;
 
           const parts = [];
           if (totalDmg > 0) {
-            // Show augmented damage, and original in parentheses if multiplied
-            let dmgText = damageMultiplier > 1
-              ? `${totalDmg} DMG (${baseDmg})`
-              : `${totalDmg}${hasConditional ? '?' : ''} DMG`;
+            // Show damage with multipliers
+            let dmgText;
+            if (finaleMultiplier > 1) {
+              // Show finale format: "8 x2" instead of "16 (8)"
+              dmgText = `${baseDmg} DMG x${finaleMultiplier}`;
+            } else if (damageMultiplier > 1) {
+              // Show regular multiplier format: "16 DMG (8)"
+              dmgText = `${totalDmg} DMG (${baseDmg})`;
+            } else {
+              // No multiplier
+              dmgText = `${totalDmg}${hasConditional ? '?' : ''} DMG`;
+            }
             parts.push(dmgText);
           }
           if (hasDynamic) parts.push('?? DMG');
@@ -297,7 +377,7 @@ export function createMeasureUI(k) {
           k.drawText({
             text: label,
             pos: k.vec2(x + beatWidth / 2, intentBarHeight / 2),
-            size: 11,
+            size: 15,
             anchor: 'center',
             font: 'sans-serif',
             color: k.rgb(255, 255, 255),
@@ -346,13 +426,123 @@ export function createMeasureUI(k) {
   ]);
 
   rhythmTrack.add([
-    k.text('RHYTHM', { size: 14, font: 'sans-serif' }),
+    k.text('RHYTHM', { size: 18, font: 'sans-serif' }),
     k.pos(10, 10),
     k.color(220, 50, 50),
   ]);
 
   // Drum track background
   const drumTrackY = trackHeight + 10;
+  let drumInfoPanel = null; // Track the info panel
+
+  // Function to create drum info panel
+  function createDrumInfoPanel() {
+    console.log('createDrumInfoPanel called, drum cards:', measureState.drumCards.length);
+    const panelWidth = 400;
+    const panelHeight = 300;
+    const panelX = k.width() / 2 - panelWidth / 2;
+    const panelY = k.height() / 2 - panelHeight / 2;
+
+    console.log('Panel dimensions:', { panelX, panelY, panelWidth, panelHeight });
+
+    // Semi-transparent background overlay
+    const overlay = k.add([
+      k.rect(k.width(), k.height()),
+      k.pos(0, 0),
+      k.color(0, 0, 0, 150),
+      k.area(),
+      k.z(150),
+      'drumInfoOverlay',
+    ]);
+    console.log('Overlay created');
+
+    // Panel background
+    const panel = k.add([
+      k.rect(panelWidth, panelHeight, { radius: 8 }),
+      k.pos(panelX, panelY),
+      k.color(40, 35, 25),
+      k.outline(4, k.rgb(180, 120, 50)),
+      k.z(151),
+      'drumInfoPanel',
+    ]);
+    console.log('Panel created');
+
+    // Title
+    panel.add([
+      k.text('DRUM CARDS', { size: 24, font: 'sans-serif' }),
+      k.pos(panelWidth / 2, 25),
+      k.anchor('center'),
+      k.color(255, 200, 100),
+    ]);
+
+    // Close instruction
+    panel.add([
+      k.text('Click outside or press ESC to close', { size: 14, font: 'sans-serif' }),
+      k.pos(panelWidth / 2, 55),
+      k.anchor('center'),
+      k.color(220, 220, 220),
+    ]);
+
+    // Display drum cards
+    if (measureState.drumCards.length === 0) {
+      panel.add([
+        k.text('No drum cards played yet', { size: 18, font: 'sans-serif' }),
+        k.pos(panelWidth / 2, panelHeight / 2),
+        k.anchor('center'),
+        k.color(255, 255, 255),
+      ]);
+    } else {
+      let yOffset = 90;
+      measureState.drumCards.forEach((drumCard) => {
+        // Card name
+        panel.add([
+          k.text(drumCard.card.cardData.name, { size: 20, font: 'sans-serif' }),
+          k.pos(20, yOffset),
+          k.color(255, 240, 180),
+        ]);
+
+        // Effect description
+        const beatNumbers = drumCard.boostedBeats.map(b => b + 1).join(', ');
+        const effectText = `+${drumCard.bonus} to beats ${beatNumbers}`;
+        panel.add([
+          k.text(effectText, { size: 16, font: 'sans-serif' }),
+          k.pos(40, yOffset + 28),
+          k.color(240, 240, 240),
+        ]);
+
+        // Full description
+        panel.add([
+          k.text(drumCard.card.cardData.description, { size: 14, font: 'sans-serif' }),
+          k.pos(40, yOffset + 52),
+          k.color(200, 200, 200),
+        ]);
+
+        yOffset += 90;
+      });
+    }
+
+    // Click overlay to close (with small delay to prevent immediate close)
+    let canClose = false;
+    k.wait(0.1, () => {
+      canClose = true;
+    });
+
+    overlay.onClick(() => {
+      if (!canClose) {
+        console.log('Overlay clicked but too soon, ignoring');
+        return;
+      }
+      console.log('Overlay clicked, closing panel');
+      overlay.destroy();
+      panel.destroy();
+      drumInfoPanel = null;
+    });
+
+    // Store reference
+    drumInfoPanel = { overlay, panel };
+    console.log('Panel setup complete, drumInfoPanel stored');
+  }
+
   const drumTrack = measure.add([
     k.rect(measureWidth, drumTrackHeight, { radius: 4 }),
     k.pos(0, drumTrackY),
@@ -362,8 +552,24 @@ export function createMeasureUI(k) {
     'drumTrack',
   ]);
 
+  // Make drum track clickable to show drum card info
+  drumTrack.onClick(() => {
+    console.log('Drum track clicked!');
+    if (drumInfoPanel) {
+      console.log('Closing existing panel');
+      // Close panel if already open
+      drumInfoPanel.overlay.destroy();
+      drumInfoPanel.panel.destroy();
+      drumInfoPanel = null;
+    } else {
+      console.log('Creating new panel');
+      // Open panel showing drum cards
+      createDrumInfoPanel();
+    }
+  });
+
   drumTrack.add([
-    k.text('DRUMS', { size: 12, font: 'sans-serif' }),
+    k.text('DRUMS', { size: 16, font: 'sans-serif' }),
     k.pos(10, 8),
     k.color(180, 120, 50),
   ]);
@@ -377,6 +583,44 @@ export function createMeasureUI(k) {
     ]);
   }
 
+  // Drum bonus display (shows which beats are boosted)
+  measure.add([
+    k.pos(0, drumTrackY),
+    k.z(3),
+    {
+      draw() {
+        for (let beat = 0; beat < 4; beat++) {
+          // Calculate total drum bonus for this beat
+          const drumBonus = measureState.drumCards.reduce((total, drumCard) => {
+            return drumCard.boostedBeats.includes(beat) ? total + drumCard.bonus : total;
+          }, 0);
+
+          if (drumBonus > 0) {
+            const x = beat * beatWidth;
+
+            // Draw bonus indicator on the drum track
+            k.drawRect({
+              pos: k.vec2(x + 4, 4),
+              width: beatWidth - 8,
+              height: drumTrackHeight - 8,
+              color: k.rgb(200, 150, 80, 150),
+              radius: 3,
+            });
+
+            k.drawText({
+              text: `+${drumBonus}`,
+              pos: k.vec2(x + beatWidth / 2, drumTrackHeight / 2),
+              size: 16,
+              anchor: 'center',
+              font: 'sans-serif',
+              color: k.rgb(255, 255, 255),
+            });
+          }
+        }
+      }
+    }
+  ]);
+
   // Bass track background
   const bassTrackY = trackHeight + 10 + drumTrackHeight + 10;
   const bassTrack = measure.add([
@@ -389,7 +633,7 @@ export function createMeasureUI(k) {
   ]);
 
   bassTrack.add([
-    k.text('BASS', { size: 14, font: 'sans-serif' }),
+    k.text('BASS', { size: 18, font: 'sans-serif' }),
     k.pos(10, 10),
     k.color(50, 150, 220),
   ]);
@@ -443,6 +687,11 @@ export function createMeasureUI(k) {
       measureState.enemyDamageReduction = reduction;
     },
 
+    // Set crescendo bonus (from Drum roll)
+    setCrescendo(value) {
+      measureState.crescendo = value;
+    },
+
     getBeatFromX(x) {
       const relativeX = x - measureX;
       if (relativeX < 0 || relativeX > measureWidth) return -1;
@@ -450,9 +699,14 @@ export function createMeasureUI(k) {
       return Math.min(3, Math.max(0, beat));
     },
 
-    // Check if card can be placed - allows wrap-around past beat 4
+    // Check if card can be placed - allows wrap-around past beat 4 unless preventWrap is true
     canPlaceCard(track, startBeat, beats) {
       if (startBeat < 0 || startBeat > 3) return false;
+
+      // If preventWrap is active, don't allow cards that would wrap
+      if (measureState.preventWrap && startBeat + beats > 4) {
+        return false;
+      }
 
       const trackArray = track === 'rhythm' ? measureState.rhythmTrack : measureState.bassTrack;
 
@@ -585,6 +839,8 @@ export function createMeasureUI(k) {
           if (card.damageMultiplier) {
             effectData.damageMultiplier = card.damageMultiplier;
           }
+          // Include startBeat for finale effects
+          effectData.startBeat = card.startBeat;
           result.playerEffects.push(effectData);
         } else if (occupiesBeat) {
           // Non-resolve beat: only per-beat effects fire
@@ -594,6 +850,8 @@ export function createMeasureUI(k) {
             if (card.damageMultiplier) {
               effectData.damageMultiplier = card.damageMultiplier;
             }
+            // Include startBeat for finale effects
+            effectData.startBeat = card.startBeat;
             result.playerEffects.push(effectData);
           }
         }
@@ -611,6 +869,19 @@ export function createMeasureUI(k) {
         if (action.beat === beat) {
           result.enemyEffects.push(action);
         }
+      });
+
+      // Echo effects on this beat
+      const echoes = this.getEchoesForBeat(beat);
+      echoes.forEach(echo => {
+        // Create a synthetic card effect for the echo
+        const echoCardData = {
+          id: 'echo',
+          name: 'Echo',
+          type: 'echo',
+          effects: [{ type: echo.type, value: echo.value, target: 'player' }]
+        };
+        result.playerEffects.push(echoCardData);
       });
 
       return result;
@@ -705,59 +976,122 @@ export function createMeasureUI(k) {
 
     // Add a drum card (permanent)
     addDrumCard(card) {
-      // Extract boosted beats and bonus from card data
+      // Extract beat bonus effects from card data
       const beatBonusEffect = card.cardData.effects.find(e => e.type === 'beatBonus');
+      const conditionalBonusEffect = card.cardData.effects.find(e => e.type === 'conditionalBeatBonus');
+      const preventWrapEffect = card.cardData.effects.find(e => e.type === 'preventWrap');
+      const giveTypeDelayEffect = card.cardData.effects.find(e => e.type === 'giveTypeDelay');
+
+      // Handle regular beat bonus
       if (beatBonusEffect) {
         measureState.drumCards.push({
           card,
           boostedBeats: beatBonusEffect.beats,
-          bonus: beatBonusEffect.value
+          bonus: beatBonusEffect.value,
+          conditionalBonus: null
         });
-
-        // Position drum card on drum track (stack horizontally)
-        const drumIndex = measureState.drumCards.length - 1;
-        const cardX = measureX + 50 + (drumIndex * 120); // Stack with overlap
-        const cardY = measureY + drumTrackY + drumTrackHeight / 2;
-        card.pos = k.vec2(cardX, cardY);
-        card.z = 15;
-
-        // Scale card to fit drum track
-        const cardWidth = 110;
-        const cardHeight = 150;
-        const targetHeight = drumTrackHeight - 10;
-        const scaleY = targetHeight / cardHeight;
-        const scaleX = scaleY; // Keep aspect ratio
-        card.scale.x = scaleX;
-        card.scale.y = scaleY;
-
-        // Counter-scale children
-        card.get('*').forEach(child => {
-          if (!child.scale) {
-            child.use(k.scale(1 / scaleX, 1 / scaleY));
-          } else {
-            child.scale.x = 1 / scaleX;
-            child.scale.y = 1 / scaleY;
-          }
-        });
-
         console.log(`Added drum card: ${card.cardData.name}, boosts beats ${beatBonusEffect.beats.map(b => b + 1).join(', ')} by +${beatBonusEffect.value}`);
       }
+
+      // Handle conditional beat bonus (e.g., bonus for 1-beat cards)
+      if (conditionalBonusEffect) {
+        measureState.drumCards.push({
+          card,
+          boostedBeats: [0, 1, 2, 3], // Apply to all beats but conditionally
+          bonus: 0, // Base bonus is 0
+          conditionalBonus: conditionalBonusEffect.value,
+          condition: conditionalBonusEffect.condition
+        });
+        console.log(`Added drum card: ${card.cardData.name}, conditional +${conditionalBonusEffect.value} for ${conditionalBonusEffect.condition}`);
+      }
+
+      // Handle prevent wrap
+      if (preventWrapEffect) {
+        measureState.preventWrap = true;
+        console.log(`Added drum card: ${card.cardData.name}, cards cannot wrap`);
+      }
+
+      // Handle type delay modifiers (e.g., bass cards get delay 1)
+      if (giveTypeDelayEffect) {
+        const cardType = giveTypeDelayEffect.cardType;
+        if (measureState.typeModifiers[cardType]) {
+          measureState.typeModifiers[cardType].delay += giveTypeDelayEffect.value;
+          console.log(`Added drum card: ${card.cardData.name}, ${cardType} cards now have delay ${measureState.typeModifiers[cardType].delay}`);
+        }
+      }
+
+      // Hide the card visual (bonuses are shown on the track, card info in panel)
+      card.opacity = 0;
+      card.z = -1; // Move behind everything
     },
 
     // Get total drum bonus for a specific beat
-    getDrumBonus(beat) {
+    getDrumBonus(beat, cardData = null) {
       let totalBonus = 0;
       measureState.drumCards.forEach(drumCard => {
+        // Regular beat bonus
         if (drumCard.boostedBeats.includes(beat)) {
           totalBonus += drumCard.bonus;
+        }
+
+        // Conditional bonus (requires cardData)
+        if (drumCard.conditionalBonus && cardData) {
+          let conditionMet = false;
+
+          // Check condition based on card properties
+          if (drumCard.condition === 'oneBeat' && cardData.beats === 1) {
+            conditionMet = true;
+          }
+
+          if (conditionMet && drumCard.boostedBeats.includes(beat)) {
+            totalBonus += drumCard.conditionalBonus;
+          }
         }
       });
       return totalBonus;
     },
 
+    // Get type modifiers for a card type (e.g., 'bass' or 'rhythm')
+    getTypeModifiers(cardType) {
+      return measureState.typeModifiers[cardType] || { delay: 0 };
+    },
+
     // Get all drum cards
     getDrumCards() {
       return measureState.drumCards;
+    },
+
+    // Close drum info panel (exposed for ESC key handler)
+    // Returns true if a panel was closed, false otherwise
+    closeDrumInfoPanel() {
+      if (drumInfoPanel) {
+        drumInfoPanel.overlay.destroy();
+        drumInfoPanel.panel.destroy();
+        drumInfoPanel = null;
+        return true;
+      }
+      return false;
+    },
+
+    // Add an echo effect
+    addEchoEffect(echoData) {
+      measureState.echoEffects.push(echoData);
+    },
+
+    // Process echoes at end of loop (halve values, decrement counts)
+    processEchoes() {
+      measureState.echoEffects = measureState.echoEffects
+        .map(echo => ({
+          ...echo,
+          value: Math.floor(echo.value / 2),
+          remainingEchoes: echo.remainingEchoes - 1
+        }))
+        .filter(echo => echo.remainingEchoes > 0 && echo.value > 0);
+    },
+
+    // Get echo effects for a specific beat
+    getEchoesForBeat(beat) {
+      return measureState.echoEffects.filter(echo => echo.beat === beat);
     },
   };
 }

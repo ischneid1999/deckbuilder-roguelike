@@ -112,7 +112,7 @@ export const CARDS = {
     rarity: 'common',
     beats: 1,
     mana: 1,
-    description: 'Deal 5 damage. Delay enemy attacks 1 beat.',
+    description: 'Deal 5 damage. Delay 1.',
     effects: [
       { type: 'damage', value: 5, target: 'enemy' },
       { type: 'delayEnemy', value: 1 }
@@ -173,6 +173,75 @@ export const CARDS = {
     ],
   },
 
+  surfWave: {
+    id: 'surfWave',
+    name: 'Surf Wave',
+    type: 'rhythm',
+    rarity: 'common',
+    beats: 1,
+    mana: 1,
+    description: 'Deal 9 damage. Reverb',
+    effects: [
+      { type: 'damage', value: 9, target: 'enemy' },
+      { type: 'reverb' }
+    ],
+  },
+
+  freebird: {
+    id: 'freebird',
+    name: 'Freebird',
+    type: 'rhythm',
+    rarity: 'common',
+    beats: 5,
+    mana: 1,
+    description: 'Deal 15 damage',
+    effects: [
+      { type: 'damage', value: 15, target: 'enemy' }
+    ],
+  },
+
+  knockEmDead: {
+    id: 'knockEmDead',
+    name: 'Knock em dead',
+    type: 'rhythm',
+    rarity: 'common',
+    beats: 2,
+    mana: 1,
+    description: 'Deal 8 damage. Finale x2 damage.',
+    effects: [
+      { type: 'damage', value: 8, target: 'enemy' },
+      { type: 'finale', multiplier: 2, applyTo: 'damage' }
+    ],
+  },
+
+  duelingGuitars: {
+    id: 'duelingGuitars',
+    name: 'Dueling Guitars',
+    type: 'rhythm',
+    rarity: 'common',
+    beats: 2,
+    mana: 1,
+    description: 'Deal 7 damage. Negate an enemy attack on this beat',
+    effects: [
+      { type: 'damage', value: 7, target: 'enemy' },
+      { type: 'negateEnemyAttack' }
+    ],
+  },
+
+  wrongNote: {
+    id: 'wrongNote',
+    name: 'Wrong Note',
+    type: 'rhythm',
+    rarity: 'common',
+    beats: 1,
+    mana: 1,
+    description: 'Deal 12 damage. Lose 4 health',
+    effects: [
+      { type: 'damage', value: 12, target: 'enemy' },
+      { type: 'loseHealth', value: 4, target: 'player' }
+    ],
+  },
+
   // ===== BASS CARDS (Block/Defense) =====
 
   bassLine: {
@@ -227,6 +296,33 @@ export const CARDS = {
     ],
   },
 
+  funkBass: {
+    id: 'funkBass',
+    name: 'Funk Bass',
+    type: 'bass',
+    rarity: 'common',
+    beats: 3,
+    mana: 2,
+    description: 'Gain 8 block on the first and last beat of this sample',
+    effects: [
+      { type: 'beatPositionBlock', value: 8, positions: ['first', 'last'], target: 'player' }
+    ],
+  },
+
+  wallOfSound: {
+    id: 'wallOfSound',
+    name: 'Wall of Sound',
+    type: 'bass',
+    rarity: 'uncommon',
+    beats: 2,
+    mana: 2,
+    description: 'Block 7 on beat 1 and Block 7 on beat 2. Delay 1.',
+    effects: [
+      { type: 'beatPositionBlock', value: 7, positions: ['first', 'last'], target: 'player' },
+      { type: 'delayEnemy', value: 1 }
+    ],
+  },
+
   subBass: {
     id: 'subBass',
     name: 'Sub Bass',
@@ -237,6 +333,47 @@ export const CARDS = {
     description: 'Gain 35 block',
     effects: [
       { type: 'block', value: 35, target: 'player' }
+    ],
+  },
+
+  walkingBassline: {
+    id: 'walkingBassline',
+    name: 'Walking bassline',
+    type: 'bass',
+    rarity: 'common',
+    beats: 4,
+    mana: 2,
+    description: 'Gain 4 block every beat',
+    effects: [
+      { type: 'blockPerBeat', value: 4, target: 'player' }
+    ],
+  },
+
+  echoingBass: {
+    id: 'echoingBass',
+    name: 'Echoing Bass',
+    type: 'bass',
+    rarity: 'uncommon',
+    beats: 2,
+    mana: 2,
+    description: 'Gain 12 block. Echo 1',
+    effects: [
+      { type: 'block', value: 12, target: 'player' },
+      { type: 'echo', echoCount: 1, echoType: 'block' }
+    ],
+  },
+
+  sickLick: {
+    id: 'sickLick',
+    name: 'Sick Lick',
+    type: 'bass',
+    rarity: 'uncommon',
+    beats: 1,
+    mana: 1,
+    description: 'Gain 16 Block. Improvise',
+    effects: [
+      { type: 'block', value: 16, target: 'player' },
+      { type: 'improvise' }
     ],
   },
 
@@ -320,6 +457,32 @@ export const CARDS = {
     ],
   },
 
+  rewind: {
+    id: 'rewind',
+    name: 'Rewind',
+    type: 'utility',
+    rarity: 'rare',
+    beats: 0,
+    mana: 1,
+    description: 'Replay every card from the last loop',
+    effects: [
+      { type: 'rewind' }
+    ],
+  },
+
+  guitarLessons: {
+    id: 'guitarLessons',
+    name: 'Guitar lessons',
+    type: 'utility',
+    rarity: 'uncommon',
+    beats: 0,
+    mana: 1,
+    description: 'Put a random rhythm card from the draw pile in your hand',
+    effects: [
+      { type: 'tutorType', cardType: 'rhythm' }
+    ],
+  },
+
   // ===== COMBO CARDS (Synergy effects) =====
 
   harmony: {
@@ -389,6 +552,59 @@ export const CARDS = {
     description: 'Permanent: +4 to beats 2 & 4',
     effects: [
       { type: 'beatBonus', value: 4, beats: [1, 3] } // Beats 2&4 (0-indexed)
+    ],
+  },
+
+  hihat: {
+    id: 'hihat',
+    name: 'Hihat',
+    type: 'drum',
+    rarity: 'uncommon',
+    beats: 4,
+    mana: 1,
+    description: 'Permanent: +1 to every beat',
+    effects: [
+      { type: 'beatBonus', value: 1, beats: [0, 1, 2, 3] } // All beats
+    ],
+  },
+
+  tightBeat: {
+    id: 'tightBeat',
+    name: 'Tight beat',
+    type: 'drum',
+    rarity: 'uncommon',
+    beats: 4,
+    mana: 1,
+    description: 'Permanent: 1 beat cards get +4. Cards cannot wrap',
+    effects: [
+      { type: 'conditionalBeatBonus', value: 4, condition: 'oneBeat' },
+      { type: 'preventWrap' }
+    ],
+  },
+
+  reggaeBeat: {
+    id: 'reggaeBeat',
+    name: 'Reggae beat',
+    type: 'drum',
+    rarity: 'rare',
+    beats: 4,
+    mana: 3,
+    description: 'Permanent: Bassline cards have Delay 1',
+    effects: [
+      { type: 'giveTypeDelay', cardType: 'bass', value: 1 }
+    ],
+  },
+
+  drumRoll: {
+    id: 'drumRoll',
+    name: 'Drum roll',
+    type: 'drum',
+    rarity: 'rare',
+    beats: 4,
+    mana: 3,
+    description: 'Gain Crescendo 4 for this turn only',
+    effects: [
+      { type: 'crescendo', value: 4 }
     ],
   },
 };

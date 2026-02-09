@@ -48,7 +48,7 @@ export function createCardSystem(k) {
       ]);
 
       card.add([
-        k.text(cardData.mana.toString(), { size: 18, font: 'sans-serif' }),
+        k.text(cardData.mana.toString(), { size: 24, font: 'sans-serif' }),
         k.pos(-cardWidth/2 + 20, -cardHeight/2 + 20),
         k.anchor('center'),
         k.color(k.WHITE),
@@ -67,7 +67,7 @@ export function createCardSystem(k) {
         ]);
 
         card.add([
-          k.text(`${cardData.beats}♪`, { size: 14, font: 'sans-serif' }),
+          k.text(`${cardData.beats}♪`, { size: 18, font: 'sans-serif' }),
           k.pos(cardWidth/2 - 20, -cardHeight/2 + 20),
           k.anchor('center'),
           k.color(k.WHITE),
@@ -77,7 +77,7 @@ export function createCardSystem(k) {
 
       // Card name
       card.add([
-        k.text(cardData.name, { size: 12, font: 'sans-serif', width: cardWidth - 10 }),
+        k.text(cardData.name, { size: 16, font: 'sans-serif', width: cardWidth - 10 }),
         k.pos(0, -cardHeight/2 + 45),
         k.anchor('center'),
         k.color(k.BLACK),
@@ -100,7 +100,7 @@ export function createCardSystem(k) {
       ]);
 
       card.add([
-        k.text(cardData.type.toUpperCase(), { size: 10, font: 'sans-serif' }),
+        k.text(cardData.type.toUpperCase(), { size: 13, font: 'sans-serif' }),
         k.pos(0, -cardHeight/2 + 65),
         k.anchor('center'),
         k.color(k.BLACK),
@@ -110,10 +110,10 @@ export function createCardSystem(k) {
       // Description
       card.add([
         k.text(cardData.description, {
-          size: 10,
+          size: 12,
           font: 'sans-serif',
           width: cardWidth - 20,
-          lineSpacing: 2,
+          lineSpacing: 3,
         }),
         k.pos(0, 10),
         k.anchor('center'),
@@ -142,7 +142,7 @@ export function createCardSystem(k) {
 
               k.drawText({
                 text: `LOOP ${card.loopCount}`,
-                size: 10,
+                size: 14,
                 font: 'sans-serif',
                 anchor: 'center',
                 color: k.BLACK,
