@@ -68,7 +68,7 @@ export function createDragDropSystem(k, measureUI, cardSystem) {
       const isOverRhythm = this.isOverTrack(mousePos, 'rhythm');
       const isOverBass = this.isOverTrack(mousePos, 'bass');
       const isOverDrum = this.isOverTrack(mousePos, 'drum');
-      console.log('Over rhythm:', isOverRhythm, 'Over bass:', isOverBass, 'Over drum:', isOverDrum);
+      console.log('Over rhythm:', isOverRhythm, 'Over bass:', isOverBass);
 
       let placed = false;
 
@@ -85,7 +85,7 @@ export function createDragDropSystem(k, measureUI, cardSystem) {
         placed = this.placeDrumCard(card, hand, combatState);
       }
       // Utility cards play immediately when clicked
-      else if (card.cardData.type === 'utility' && !isOverRhythm && !isOverBass && !isOverDrum) {
+      else if (card.cardData.type === 'utility' && !isOverRhythm && !isOverBass) {
         placed = this.playUtilityCard(card, hand, combatState);
       }
 
@@ -111,26 +111,17 @@ export function createDragDropSystem(k, measureUI, cardSystem) {
 
     // Check if mouse is over a track
     isOverTrack(mousePos, track) {
-      let y, height;
+      const y = track === 'rhythm'
+        ? measureUI.measureY
+        : measureUI.measureY + measureUI.trackHeight + 20;
 
-      if (track === 'rhythm') {
-        y = measureUI.measureY;
-        height = measureUI.trackHeight;
-      } else if (track === 'drum') {
-        y = measureUI.measureY + measureUI.trackHeight + 10;
-        height = 60; // drumTrackHeight
-      } else if (track === 'bass') {
-        y = measureUI.measureY + measureUI.trackHeight + 10 + 60 + 10;
-        height = measureUI.trackHeight;
-      }
-
-      const inYRange = mousePos.y >= y && mousePos.y <= y + height;
+      const inYRange = mousePos.y >= y && mousePos.y <= y + measureUI.trackHeight;
       const inXRange = mousePos.x >= measureUI.measureX && mousePos.x <= measureUI.measureX + 800;
 
       return inYRange && inXRange;
     },
 
-    // Place drum card on drum track (permanent)
+ // Place drum card on drum track (permanent)
     placeDrumCard(card, hand, combatState) {
       console.log('Trying to place drum card');
 

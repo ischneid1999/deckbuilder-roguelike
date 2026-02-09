@@ -234,7 +234,7 @@ export function createMeasureUI(k) {
               }
             }
           });
-
+            
           // Check wrapped cards from previous loop
           measureState.wrappedCards.forEach(w => {
             if (w.resolveBeat === beat) {
@@ -483,7 +483,9 @@ export function createMeasureUI(k) {
 
       // Position card on measure
       const cardX = measureX + startBeat * beatWidth + (beatsInMeasure * beatWidth) / 2;
-      const cardY = track === 'rhythm' ? measureY + trackHeight / 2 : measureY + trackHeight + 20 + trackHeight / 2;
+      const cardY = track === 'rhythm' 
+        ? measureY + trackHeight / 2 
+        : measureY + trackHeight + 10 + drumTrackHeight + 10 + trackHeight / 2;
 
       card.pos = k.vec2(cardX, cardY);
       card.z = 15;
