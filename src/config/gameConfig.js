@@ -18,11 +18,11 @@ export const COLORS = {
 };
 
 export const STARTING_DECK = [
-  'basicBeat', 'basicBeat', 'basicBeat', 'basicBeat', 'basicBeat', 'basicBeat', 'basicBeat',
-  'bassLine', 'bassLine', 'bassLine', 'bassLine', 'bassLine', 'bassLine', 'bassLine',
+  'basicBeat', 'basicBeat', 'basicBeat', 'basicBeat', 'basicBeat',
+  'bassLine', 'bassLine', 'bassLine', 'bassLine', 'bassLine',
 ];
 
 export const GAME_STATE_DEFAULTS = {
-  maxHP: 60,
+  maxHP: 150,
   maxEnergy: 3,
 };

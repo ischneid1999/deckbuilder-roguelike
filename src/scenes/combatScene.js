@@ -75,7 +75,11 @@ export function combatScene(k) {
       turnNumber: 0,
       blockGainedThisLoop: 0,
       doubleDamageBeat: -1, // Which beat should deal double damage (-1 = none)
+      enemyDamageReduction: 0, // Reduces all enemy damage (from Deafen)
       drawCards, // Pass drawCards function for instant effects
+      targetingMode: false, // Whether player is selecting a target
+      targetingCard: null, // The utility card waiting for a target
+      targetingCallback: null, // Function to call when target is selected
     };
 
     const cardSystem = createCardSystem(k);
@@ -117,6 +121,25 @@ export function combatScene(k) {
       k.pos(k.width() - 30, 30),
       k.anchor('right'),
       k.color(200, 200, 200),
+    ]);
+
+    // Targeting mode indicator
+    k.add([
+      k.pos(k.width() / 2, 30),
+      k.anchor('center'),
+      k.z(100),
+      {
+        draw() {
+          if (combatState.targetingMode) {
+            k.drawText({
+              text: 'SELECT A CARD ON THE TRACK',
+              size: 28,
+              color: k.rgb(255, 255, 100),
+              font: 'sans-serif',
+            });
+          }
+        }
+      }
     ]);
 
     let deckViewerOpen = false;
@@ -489,6 +512,23 @@ export function combatScene(k) {
       dragDropSystem.handleMouseRelease(handCards, combatState);
     });
 
+    // Right-click to cancel targeting mode
+    k.onMousePress('right', () => {
+      if (combatState.targetingMode) {
+        console.log('Canceling targeting mode (right-click)');
+        // Refund mana from the utility card
+        if (combatState.targetingCard) {
+          combatState.mana = Math.min(combatState.maxMana, combatState.mana + combatState.targetingCard.cardData.mana);
+          // Destroy the utility card
+          combatState.targetingCard.destroy();
+        }
+        // Exit targeting mode
+        combatState.targetingMode = false;
+        combatState.targetingCard = null;
+        combatState.targetingCallback = null;
+      }
+    });
+
     function createPlaytestOverlay() {
       // Background overlay
       const bg = k.add([
@@ -582,6 +622,18 @@ export function combatScene(k) {
         playtestInput = '';
         playtestJustOpened = false;
         destroyPlaytestOverlay();
+      } else if (combatState.targetingMode) {
+        console.log('Canceling targeting mode');
+        // Refund mana from the utility card
+        if (combatState.targetingCard) {
+          combatState.mana = Math.min(combatState.maxMana, combatState.mana + combatState.targetingCard.cardData.mana);
+          // Destroy the utility card
+          combatState.targetingCard.destroy();
+        }
+        // Exit targeting mode
+        combatState.targetingMode = false;
+        combatState.targetingCard = null;
+        combatState.targetingCallback = null;
       }
     });
 
@@ -669,7 +721,7 @@ export function combatScene(k) {
       actions.playerEffects.forEach(cardData => {
         cardData.effects.forEach(effect => {
           if (effect.type === 'delayEnemy') {
-            const logEntry = executeEffect(effect, 'player', beat);
+            const logEntry = executeEffect(effect, 'player', beat, cardData.damageMultiplier);
             if (logEntry) beatLog.push(`Beat ${beat + 1}: ${logEntry}`);
           }
         });
@@ -682,7 +734,7 @@ export function combatScene(k) {
       updatedActions.playerEffects.forEach(cardData => {
         cardData.effects.forEach(effect => {
           if (effect.type === 'block') {
-            const logEntry = executeEffect(effect, 'player', beat);
+            const logEntry = executeEffect(effect, 'player', beat, cardData.damageMultiplier);
             if (logEntry) beatLog.push(`Beat ${beat + 1}: ${logEntry}`);
           }
         });
@@ -703,7 +755,7 @@ export function combatScene(k) {
             if (effect.type === 'draw' && cardData.id === 'syncopation') {
               return;
             }
-            const logEntry = executeEffect(effect, 'player', beat);
+            const logEntry = executeEffect(effect, 'player', beat, cardData.damageMultiplier);
             if (logEntry) beatLog.push(`Beat ${beat + 1}: ${logEntry}`);
           }
         });
@@ -730,15 +782,28 @@ export function combatScene(k) {
       });
     }
 
-    function dealDamageToEnemy(rawValue, currentBeat) {
-      // Check if this beat should deal double damage
-      const multiplier = combatState.doubleDamageBeat === currentBeat ? 2 : 1;
-      const dmg = rawValue * multiplier;
+    function dealDamageToEnemy(rawValue, currentBeat, cardMultiplier = 1) {
+      // Apply card damage multiplier (from Turn to 11) first
+      let totalMultiplier = cardMultiplier;
+
+      // Check if this beat should deal double damage (from Lead-in)
+      if (combatState.doubleDamageBeat === currentBeat) {
+        totalMultiplier *= 2;
+      }
+
+      const dmg = rawValue * totalMultiplier;
       const blocked = Math.min(dmg, combatState.enemyBlock);
       combatState.enemyBlock -= blocked;
       const actual = dmg - blocked;
       combatState.enemyHP = Math.max(0, combatState.enemyHP - actual);
-      const multi = multiplier > 1 ? ' (x2!)' : '';
+
+      let multi = '';
+      if (cardMultiplier > 1) {
+        multi += ` (x${cardMultiplier}!)`;
+      }
+      if (combatState.doubleDamageBeat === currentBeat) {
+        multi += ' (x2!)';
+      }
 
       // Clear the double damage flag after using it
       if (combatState.doubleDamageBeat === currentBeat) {
@@ -748,26 +813,35 @@ export function combatScene(k) {
       return { actual, blocked, multi };
     }
 
-    function executeEffect(effect, source, beat) {
+    function executeEffect(effect, source, beat, cardMultiplier = 1) {
+      // Get drum bonus for this beat (applies before multipliers)
+      const drumBonus = measureUI.getDrumBonus(beat);
+
       switch (effect.type) {
         case 'damage': {
-          const { actual, blocked, multi } = dealDamageToEnemy(effect.value, beat);
-          return `You deal ${actual} damage${blocked > 0 ? ` (${blocked} blocked)` : ''}${multi}`;
+          const boostedValue = effect.value + drumBonus;
+          const { actual, blocked, multi } = dealDamageToEnemy(boostedValue, beat, cardMultiplier);
+          const drumText = drumBonus > 0 ? ` (+${drumBonus} drum)` : '';
+          return `You deal ${actual} damage${blocked > 0 ? ` (${blocked} blocked)` : ''}${drumText}${multi}`;
         }
         case 'damagePerBeat': {
-          const { actual, blocked, multi } = dealDamageToEnemy(effect.value, beat);
-          return `Flourish: ${actual} damage${blocked > 0 ? ` (${blocked} blocked)` : ''}${multi}`;
+          const boostedValue = effect.value + drumBonus;
+          const { actual, blocked, multi } = dealDamageToEnemy(boostedValue, beat, cardMultiplier);
+          const drumText = drumBonus > 0 ? ` (+${drumBonus} drum)` : '';
+          return `Flourish: ${actual} damage${blocked > 0 ? ` (${blocked} blocked)` : ''}${drumText}${multi}`;
         }
         case 'beatMultipliedDamage': {
-          const dmgValue = effect.value * (beat + 1); // Beat 0=2, Beat 1=4, Beat 2=6, Beat 3=8
-          const { actual, blocked, multi } = dealDamageToEnemy(dmgValue, beat);
-          return `Chord Progression: ${actual} damage${blocked > 0 ? ` (${blocked} blocked)` : ''}${multi}`;
+          const dmgValue = effect.value * (beat + 1) + drumBonus; // Apply drum bonus after beat multiplier
+          const { actual, blocked, multi } = dealDamageToEnemy(dmgValue, beat, cardMultiplier);
+          const drumText = drumBonus > 0 ? ` (+${drumBonus} drum)` : '';
+          return `Chord Progression: ${actual} damage${blocked > 0 ? ` (${blocked} blocked)` : ''}${drumText}${multi}`;
         }
         case 'damageEqualBlock': {
-          const dmgValue = combatState.blockGainedThisLoop;
+          const dmgValue = combatState.blockGainedThisLoop + drumBonus;
           if (dmgValue <= 0) return `Violent Riff: 0 damage (no block gained)`;
-          const { actual, blocked, multi } = dealDamageToEnemy(dmgValue, beat);
-          return `Violent Riff: ${actual} damage (=${dmgValue} block)${blocked > 0 ? ` (${blocked} blocked)` : ''}${multi}`;
+          const { actual, blocked, multi } = dealDamageToEnemy(dmgValue, beat, cardMultiplier);
+          const drumText = drumBonus > 0 ? ` (+${drumBonus} drum)` : '';
+          return `Violent Riff: ${actual} damage (=${combatState.blockGainedThisLoop} block)${drumText}${blocked > 0 ? ` (${blocked} blocked)` : ''}${multi}`;
         }
         case 'conditionalDamage': {
           let conditionMet = false;
@@ -780,8 +854,17 @@ export function combatScene(k) {
             condLabel = 'bass playing';
           }
           if (!conditionMet) return `Condition not met (${condLabel})`;
-          const { actual, blocked, multi } = dealDamageToEnemy(effect.value, beat);
-          return `Bonus ${actual} damage! (${condLabel})${blocked > 0 ? ` (${blocked} blocked)` : ''}${multi}`;
+          const boostedValue = effect.value + drumBonus;
+          const { actual, blocked, multi } = dealDamageToEnemy(boostedValue, beat, cardMultiplier);
+          const drumText = drumBonus > 0 ? ` (+${drumBonus} drum)` : '';
+          return `Bonus ${actual} damage! (${condLabel})${drumText}${blocked > 0 ? ` (${blocked} blocked)` : ''}${multi}`;
+        }
+        case 'block': {
+          const boostedValue = effect.value + drumBonus;
+          combatState.playerBlock += boostedValue;
+          combatState.blockGainedThisLoop += boostedValue;
+          const drumText = drumBonus > 0 ? ` (+${drumBonus} drum)` : '';
+          return `Gain ${boostedValue} block${drumText}`;
         }
         case 'delayEnemy': {
           // Move ALL enemy intentions forward, including current beat
@@ -793,11 +876,6 @@ export function combatScene(k) {
           const nextBeat = (beat + 1) % 4; // Wrap around: 0,1,2,3 -> next beat
           combatState.doubleDamageBeat = nextBeat;
           return `Next beat (${nextBeat + 1}) deals double damage!`;
-        }
-        case 'block': {
-          combatState.playerBlock += effect.value;
-          combatState.blockGainedThisLoop += effect.value;
-          return `You gain ${effect.value} block`;
         }
         case 'draw':
           drawCards(effect.value);
@@ -812,11 +890,21 @@ export function combatScene(k) {
 
     function executeEnemyAction(action) {
       if (action.type === 'attack') {
-        const blocked = Math.min(action.value, combatState.playerBlock);
+        // Apply damage reduction from Deafen
+        const reducedDamage = Math.max(0, action.value - combatState.enemyDamageReduction);
+        const blocked = Math.min(reducedDamage, combatState.playerBlock);
         combatState.playerBlock -= blocked;
-        const actual = action.value - blocked;
+        const actual = reducedDamage - blocked;
         combatState.playerHP = Math.max(0, combatState.playerHP - actual);
-        return `Enemy deals ${actual} damage${blocked > 0 ? ` (${blocked} blocked)` : ''}`;
+
+        let message = `Enemy deals ${actual} damage`;
+        if (combatState.enemyDamageReduction > 0) {
+          message += ` (${action.value}-${combatState.enemyDamageReduction})`;
+        }
+        if (blocked > 0) {
+          message += ` (${blocked} blocked)`;
+        }
+        return message;
       } else if (action.type === 'block') {
         combatState.enemyBlock += action.value;
         return `Enemy gains ${action.value} block`;

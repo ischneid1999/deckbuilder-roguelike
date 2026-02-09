@@ -67,7 +67,8 @@ export function createDragDropSystem(k, measureUI, cardSystem) {
       // Check if card is over measure
       const isOverRhythm = this.isOverTrack(mousePos, 'rhythm');
       const isOverBass = this.isOverTrack(mousePos, 'bass');
-      console.log('Over rhythm:', isOverRhythm, 'Over bass:', isOverBass);
+      const isOverDrum = this.isOverTrack(mousePos, 'drum');
+      console.log('Over rhythm:', isOverRhythm, 'Over bass:', isOverBass, 'Over drum:', isOverDrum);
 
       let placed = false;
 
@@ -79,8 +80,12 @@ export function createDragDropSystem(k, measureUI, cardSystem) {
       else if (isOverBass && card.cardData.type === 'bass') {
         placed = this.tryPlaceCard(card, 'bass', mousePos, hand, combatState);
       }
+      // Try to place drum card on drum track
+      else if (isOverDrum && card.cardData.type === 'drum') {
+        placed = this.placeDrumCard(card, hand, combatState);
+      }
       // Utility cards play immediately when clicked
-      else if (card.cardData.type === 'utility' && !isOverRhythm && !isOverBass) {
+      else if (card.cardData.type === 'utility' && !isOverRhythm && !isOverBass && !isOverDrum) {
         placed = this.playUtilityCard(card, hand, combatState);
       }
 
@@ -106,14 +111,54 @@ export function createDragDropSystem(k, measureUI, cardSystem) {
 
     // Check if mouse is over a track
     isOverTrack(mousePos, track) {
-      const y = track === 'rhythm'
-        ? measureUI.measureY
-        : measureUI.measureY + measureUI.trackHeight + 20;
+      let y, height;
 
-      const inYRange = mousePos.y >= y && mousePos.y <= y + measureUI.trackHeight;
+      if (track === 'rhythm') {
+        y = measureUI.measureY;
+        height = measureUI.trackHeight;
+      } else if (track === 'drum') {
+        y = measureUI.measureY + measureUI.trackHeight + 10;
+        height = 60; // drumTrackHeight
+      } else if (track === 'bass') {
+        y = measureUI.measureY + measureUI.trackHeight + 10 + 60 + 10;
+        height = measureUI.trackHeight;
+      }
+
+      const inYRange = mousePos.y >= y && mousePos.y <= y + height;
       const inXRange = mousePos.x >= measureUI.measureX && mousePos.x <= measureUI.measureX + 800;
 
       return inYRange && inXRange;
+    },
+
+    // Place drum card on drum track (permanent)
+    placeDrumCard(card, hand, combatState) {
+      console.log('Trying to place drum card');
+
+      if (combatState.mana >= card.cardData.mana) {
+        // Spend mana
+        combatState.mana -= card.cardData.mana;
+
+        // Add to drum track (permanent)
+        measureUI.addDrumCard(card);
+
+        // Remove from hand
+        const index = hand.indexOf(card);
+        if (index !== -1) {
+          hand.splice(index, 1);
+        }
+
+        // Mark as placed and permanent (won't be discarded)
+        card.isPlaced = true;
+        card.placedTrack = 'drum';
+        card.isPermanent = true; // Drum cards stay on track forever
+        card.angle = 0;
+
+        console.log('Drum card placed successfully!');
+        return true;
+      }
+
+      console.log('Cannot place drum card - not enough mana');
+      return false;
     },
 
    // Try to place card on track
@@ -156,11 +201,11 @@ export function createDragDropSystem(k, measureUI, cardSystem) {
         card.loopCount = 0;
         if (card.cardData.effects) {
           card.cardData.effects.forEach(effect => {
-            // Syncopation: draw happens immediately, not during beat resolution
-            if (effect.type === 'draw' && card.cardData.id === 'syncopation') {
+            // Draw effects happen immediately, not during beat resolution
+            if (effect.type === 'draw') {
               if (combatState.drawCards) {
                 combatState.drawCards(effect.value);
-                console.log(`Syncopation: Drew ${effect.value} card(s) instantly`);
+                console.log(`${card.cardData.name}: Drew ${effect.value} card(s) instantly`);
               }
             }
             // Set loop count for looping cards
@@ -190,6 +235,69 @@ export function createDragDropSystem(k, measureUI, cardSystem) {
     // Play utility card immediately
     playUtilityCard(card, hand, combatState) {
       if (combatState.mana >= card.cardData.mana) {
+        // Check if this is a targeting card (like Looper Pedal or Turn to 11)
+        const hasTargetEffect = card.cardData.effects.some(e =>
+          e.type === 'targetLoop' || e.type === 'targetDoubleDamage'
+        );
+
+        if (hasTargetEffect) {
+          // Spend mana
+          combatState.mana -= card.cardData.mana;
+
+          // Remove from hand
+          const index = hand.indexOf(card);
+          if (index !== -1) {
+            hand.splice(index, 1);
+          }
+
+          // Enter targeting mode
+          combatState.targetingMode = true;
+          combatState.targetingCard = card;
+
+          // Store callback for when target is selected
+          combatState.targetingCallback = (targetCard) => {
+            // Apply the loop effect to the target
+            const loopEffect = card.cardData.effects.find(e => e.type === 'targetLoop');
+            if (loopEffect && targetCard.loopCount !== undefined) {
+              targetCard.loopCount += loopEffect.value;
+              console.log(`${card.cardData.name}: Added ${loopEffect.value} loop to ${targetCard.cardData.name}, now has ${targetCard.loopCount} loops`);
+            }
+
+            // Apply damage multiplier to the target
+            const doubleDamageEffect = card.cardData.effects.find(e => e.type === 'targetDoubleDamage');
+            if (doubleDamageEffect) {
+              // Initialize damageMultiplier if not set
+              if (!targetCard.damageMultiplier) {
+                targetCard.damageMultiplier = 1;
+              }
+              targetCard.damageMultiplier *= doubleDamageEffect.value;
+              console.log(`${card.cardData.name}: Multiplied damage of ${targetCard.cardData.name} by ${doubleDamageEffect.value}x, now ${targetCard.damageMultiplier}x`);
+
+              // Update the card's description text to show the multiplier
+              targetCard.get('*').forEach(child => {
+                if (child.text && child.text.includes('Deal') || child.text && child.text.includes('damage')) {
+                  // Find the description text element and add multiplier indicator
+                  const originalDesc = child.text;
+                  if (!originalDesc.includes('x)')) {
+                    child.text = originalDesc + ` (x${targetCard.damageMultiplier})`;
+                  }
+                }
+              });
+            }
+
+            // Destroy the utility card
+            card.destroy();
+
+            // Exit targeting mode
+            combatState.targetingMode = false;
+            combatState.targetingCard = null;
+            combatState.targetingCallback = null;
+          };
+
+          return true;
+        }
+
+        // Non-targeting utility cards
         // Spend mana
         combatState.mana -= card.cardData.mana;
 
@@ -216,10 +324,30 @@ export function createDragDropSystem(k, measureUI, cardSystem) {
       card.cardData.effects.forEach(effect => {
         switch (effect.type) {
           case 'draw':
-            console.log(`Draw ${effect.value} cards`);
+            if (combatState.drawCards) {
+              combatState.drawCards(effect.value);
+              console.log(`${card.cardData.name}: Drew ${effect.value} card(s)`);
+            }
             break;
           case 'gainMana':
             combatState.mana += effect.value;
+            console.log(`${card.cardData.name}: Gained ${effect.value} mana`);
+            break;
+          case 'drawPerSample':
+            // Count cards on both rhythm and bass tracks
+            const rhythmCards = measureUI.rhythmTrack.filter(c => c !== null).length;
+            const bassCards = measureUI.bassTrack.filter(c => c !== null).length;
+            const totalSamples = rhythmCards + bassCards;
+            const cardsToDraw = effect.value + totalSamples;
+            if (combatState.drawCards) {
+              combatState.drawCards(cardsToDraw);
+              console.log(`${card.cardData.name}: Drew ${cardsToDraw} cards (${effect.value} base + ${totalSamples} samples)`);
+            }
+            break;
+          case 'weakenEnemy':
+            combatState.enemyDamageReduction += effect.value;
+            measureUI.setEnemyDamageReduction(combatState.enemyDamageReduction);
+            console.log(`${card.cardData.name}: Enemy damage reduced by ${effect.value}, total reduction: ${combatState.enemyDamageReduction}`);
             break;
           case 'clearMeasure':
             console.log('Clear measure');
@@ -230,10 +358,41 @@ export function createDragDropSystem(k, measureUI, cardSystem) {
 
     // Setup click handler for placed cards to pick them back up
     setupPlacedCardPickup(card, hand, combatState) {
+      // Store original color for hover effect (extract RGB values from Color object)
+      card.originalColor = card.color ? [card.color.r, card.color.g, card.color.b] : null;
+
+      // Add hover handlers for targeting mode
+      card.onHover(() => {
+        if (combatState.targetingMode && card.isPlaced) {
+          // Yellow highlight when targeting
+          card.color = k.rgb(255, 255, 100);
+        }
+      });
+
+      card.onHoverEnd(() => {
+        if (combatState.targetingMode && card.isPlaced && card.originalColor) {
+          // Restore original color
+          card.color = k.rgb(...card.originalColor);
+        }
+      });
+
       // Remove old click handler by replacing it
       card.onClick(() => {
         if (combatState.currentTurn !== 'player') return;
         if (!card.isPlaced) return;
+
+        // If in targeting mode, select this card as the target
+        if (combatState.targetingMode) {
+          console.log('Selected target:', card.cardData.name);
+          if (combatState.targetingCallback) {
+            combatState.targetingCallback(card);
+          }
+          // Restore original color after targeting
+          if (card.originalColor) {
+            card.color = k.rgb(...card.originalColor);
+          }
+          return;
+        }
 
         // Can't pick up looping cards after they've started looping
         if (!card.canPickUp) {

@@ -41,15 +41,15 @@ export const CARDS = {
   },
 
   quickHit: {
-    id: 'quickHit',
-    name: 'Quick Hit',
+    id: 'rapidStrum',
+    name: 'Rapid Strum',
     type: 'rhythm',
-    rarity: 'common',
+    rarity: 'uncommon',
     beats: 1,
     mana: 0,
-    description: 'Deal 3 damage',
+    description: 'Deal 6 damage',
     effects: [
-      { type: 'damage', value: 3, target: 'enemy' }
+      { type: 'damage', value: 6, target: 'enemy' }
     ],
   },
 
@@ -86,9 +86,9 @@ export const CARDS = {
     rarity: 'common',
     beats: 2,
     mana: 1,
-    description: 'Deal 3 damage every beat',
+    description: 'Deal 4 damage every beat',
     effects: [
-      { type: 'damagePerBeat', value: 3, target: 'enemy' }
+      { type: 'damagePerBeat', value: 4, target: 'enemy' }
     ],
   },
 
@@ -97,7 +97,7 @@ export const CARDS = {
     name: 'Violent Riff',
     type: 'rhythm',
     rarity: 'common',
-    beats: 3,
+    beats: 4,
     mana: 1,
     description: 'Deal damage equal to block built this loop',
     effects: [
@@ -111,7 +111,7 @@ export const CARDS = {
     type: 'rhythm',
     rarity: 'common',
     beats: 1,
-    mana: 2,
+    mana: 1,
     description: 'Deal 5 damage. Delay enemy attacks 1 beat.',
     effects: [
       { type: 'damage', value: 5, target: 'enemy' },
@@ -123,9 +123,9 @@ export const CARDS = {
     id: 'outro',
     name: 'Outro',
     type: 'rhythm',
-    rarity: 'common',
+    rarity: 'uncommon',
     beats: 1,
-    mana: 1,
+    mana: 0,
     description: 'Deal 10 damage if rhythm lane is full',
     effects: [
       { type: 'conditionalDamage', value: 10, condition: 'rhythmFull', target: 'enemy' }
@@ -139,7 +139,7 @@ export const CARDS = {
     rarity: 'common',
     beats: 1,
     mana: 1,
-    description: 'Deal 4 damage. Next loop deals double damage.',
+    description: 'Deal 4 damage. Next card deals double damage.',
     effects: [
       { type: 'damage', value: 4, target: 'enemy' },
       { type: 'doubleDamageNext' }
@@ -159,6 +159,20 @@ export const CARDS = {
     ],
   },
 
+  whammy: {
+    id: 'whammy',
+    name: 'Whammy',
+    type: 'rhythm',
+    rarity: 'common',
+    beats: 2,
+    mana: 1,
+    description: 'Deal 8 damage. Draw a card',
+    effects: [
+      { type: 'damage', value: 8, target: 'enemy' },
+      { type: 'draw', value: 1, target: 'player' }
+    ],
+  },
+
   // ===== BASS CARDS (Block/Defense) =====
 
   bassLine: {
@@ -174,6 +188,19 @@ export const CARDS = {
     ],
   },
 
+  fingerPluck: {
+    id: 'fingerPluck',
+    name: 'Finger Pluck',
+    type: 'bass',
+    rarity: 'common',
+    beats: 1,
+    mana: 1,
+    description: 'Gain 7 block',
+    effects: [
+      { type: 'block', value: 7, target: 'player' }
+    ],
+  },
+
   deepBass: {
     id: 'deepBass',
     name: 'Deep Bass',
@@ -181,9 +208,9 @@ export const CARDS = {
     rarity: 'common',
     beats: 2,
     mana: 2,
-    description: 'Gain 12 block',
+    description: 'Gain 15 block',
     effects: [
-      { type: 'block', value: 12, target: 'player' }
+      { type: 'block', value: 15, target: 'player' }
     ],
   },
 
@@ -241,6 +268,58 @@ export const CARDS = {
     ],
   },
 
+  looperPedal: {
+    id: 'looperPedal',
+    name: 'Looper Pedal',
+    type: 'utility',
+    rarity: 'uncommon',
+    beats: 0,
+    mana: 1,
+    description: 'Add loop 1 to a card on the track',
+    effects: [
+      { type: 'targetLoop', value: 1 }
+    ],
+  },
+
+  soundCheck: {
+    id: 'soundCheck',
+    name: 'Sound Check',
+    type: 'utility',
+    rarity: 'uncommon',
+    beats: 0,
+    mana: 1,
+    description: 'Draw 1+X cards, where X is the number of samples on the track',
+    effects: [
+      { type: 'drawPerSample', value: 1 }
+    ],
+  },
+
+  turnTo11: {
+    id: 'turnTo11',
+    name: 'Turn to 11',
+    type: 'utility',
+    rarity: 'common',
+    beats: 0,
+    mana: 1,
+    description: 'Double the damage of a sample on the track',
+    effects: [
+      { type: 'targetDoubleDamage', value: 2 }
+    ],
+  },
+
+  deafen: {
+    id: 'deafen',
+    name: 'Deafen',
+    type: 'utility',
+    rarity: 'common',
+    beats: 0,
+    mana: 1,
+    description: 'Reduce all enemy damage by 5',
+    effects: [
+      { type: 'weakenEnemy', value: 5 }
+    ],
+  },
+
   // ===== COMBO CARDS (Synergy effects) =====
 
   harmony: {
@@ -264,9 +343,9 @@ export const CARDS = {
     rarity: 'common',
     beats: 1,
     mana: 1,
-    description: 'Gain 3 block. Draw 1 card.',
+    description: 'Gain 5 block. Draw 1 card.',
     effects: [
-      { type: 'block', value: 3, target: 'player' },
+      { type: 'block', value: 5, target: 'player' },
       { type: 'draw', value: 1, target: 'player' }
     ],
   },
@@ -282,6 +361,34 @@ export const CARDS = {
     effects: [
       { type: 'block', value: 5, target: 'player' },
       { type: 'loop', value: 1 }
+    ],
+  },
+
+  // ===== DRUM CARDS (Permanent beat modifiers) =====
+
+  kick: {
+    id: 'kick',
+    name: 'Kick',
+    type: 'drum',
+    rarity: 'uncommon',
+    beats: 4,
+    mana: 1,
+    description: 'Permanent: +4 to beats 1 & 3',
+    effects: [
+      { type: 'beatBonus', value: 4, beats: [0, 2] } // Beats 1&3 (0-indexed)
+    ],
+  },
+
+  snare: {
+    id: 'snare',
+    name: 'Snare',
+    type: 'drum',
+    rarity: 'uncommon',
+    beats: 4,
+    mana: 1,
+    description: 'Permanent: +4 to beats 2 & 4',
+    effects: [
+      { type: 'beatBonus', value: 4, beats: [1, 3] } // Beats 2&4 (0-indexed)
     ],
   },
 };
@@ -322,6 +429,7 @@ export function getCardColor(card) {
     rhythm: [220, 50, 50],    // Red
     bass: [50, 150, 220],      // Blue
     utility: [150, 220, 50],   // Green
+    drum: [180, 120, 50],      // Orange/Brown
   };
 
   const rarityMultipliers = {
